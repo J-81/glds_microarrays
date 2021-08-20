@@ -1,6 +1,20 @@
 #!/usr/bin/env Rscript
 
 
+### Better error reporting
+options(error = quote({
+  dump.frames(to.file=T, dumpto='last.dump')
+  load('last.dump.rda')
+  print(last.dump)
+  q()
+}))
+
+
+### Gets root directory for codebase
+### Used to make the package location independent
+args <- commandArgs(trailingOnly = FALSE)
+codebase_dir <- dirname(sub("--file=","",args[grep("--file=", args)]))
+
 library("optparse")
 
 option_list = list(
@@ -50,20 +64,20 @@ if (is.null(opt$glds)){
   stop("At least one argument must be supplied (GLDS)", call.=FALSE)
 }
 
-source("microarray_functions.R")
+source(file.path(codebase_dir, "microarray_functions.R"))
 
 ### Get Study Files
 if (length(opt$files) > 0){
-  cat("\nImporting files for:",opt$glds, "\n")
+  print(paste("Importing files for:", opt$glds))
   opt$files <- Sys.glob(file.path(opt$files))
 }
 
 if (length(opt$runsheet >= 1)){
   tempstage <- tempdir()
   unlink(list.files(tempstage, full.names = TRUE))
-  cat("Staging table path: ",opt$runsheet,"\n")
+  print(paste("Staging table path: ", opt$runsheet))
   table <- read.csv(opt$runsheet,header = TRUE, stringsAsFactors = FALSE)
-  cat("Staging headers: ",colnames(table),"\n")
+  print(paste("Staging headers: ", colnames(table)))
   opt$species <- table$Characteristics.Organism.[1]
   cat("\nParsed organism: ",opt$species,"\n")
   opt$platform <- table$Study.Assay.Technology.Platform[1]
@@ -78,21 +92,21 @@ if (length(opt$runsheet >= 1)){
 
   opt$files <- table$array_data_file_path
   
-  for (file in 1:length(opt$files)){ # test whether file path exists from runsheet, if not, tries to find it using local directory structure
-    if (file.exists(opt$files[file])){
-      cat("The file exists: ",opt$files[file],"\n")
-    } else{
-      altfile <- paste0(dirname(dirname(opt$runsheet)),"/00-RawData/",basename(opt$files[file]))
-      if (file.exists(altfile)) {
-        
-        cat("The file exists: ",altfile,"\n")
-        opt$files[file] <- altfile
-      } else {
-        
-        cat("The files do not exist: ",altfile,"  ",opt$files[file],"\n")
-      }
-    }
-  }
+  # for (file in 1:length(opt$files)){ # test whether file path exists from runsheet, if not, tries to find it using local directory structure
+  #  if (file.exists(opt$files[file])){
+  #    cat("The file exists: ",opt$files[file],"\n")
+  #  } else{
+  #    altfile <- paste0(dirname(dirname(opt$runsheet)),"/00-RawData/",basename(opt$files[file]))
+  #    if (file.exists(altfile)) {
+  #      
+  #      cat("The file exists: ",altfile,"\n")
+  #      opt$files[file] <- altfile
+  #    } else {
+  #      
+  #      cat("The files do not exist: ",altfile,"  ",opt$files[file],"\n")
+  #    }
+  #  }
+  #}
   
   cat("\nExtracted file list: ",opt$files,"\n")
 }
@@ -125,7 +139,7 @@ if (length(opt$staging >= 1)){
 }
 ### Get organism annotation package
 options(connectionObserver = NULL)
-organism_table <- read.csv(file = file.path(getwd(),"organisms.csv"), header = TRUE, stringsAsFactors = FALSE)
+organism_table <- read.csv(file = file.path(codebase_dir, "organisms.csv"), header = TRUE, stringsAsFactors = FALSE)
 ann.dbi <- organism_table$annotations[organism_table$species == opt$species] # Organism specific gene annotation database
 ann.dbi=as.character(ann.dbi)
 if(!require(ann.dbi, character.only=TRUE)) {
@@ -165,9 +179,9 @@ cat("Temp Probe file: ",opt$probe, "\n")
 
 ### Selects appropriate package for plots
 
-if ((opt$platform == "Affymetrix") | (opt$platform == "Nimblegen 1-channel")){
+if ((opt$platform %in% c("Affymetrix", "Nimblegen 1-channel"))){
   plots <- "OLIGO"
-}else if((opt$platform == "Illumina Expression") | (opt$platform == "Agilent 1-channel") | (opt$platform == "Agilent 2-channel") | (opt$platform == "Nimblegen 2-channel")){
+}else if((opt$platform %in% c("Illumina Expression", "Agilent 1-channel", "Agilent 2-channel", "Nimblegen 2-channel"))){
   plots <- "LIMMA"
 }else {
   plots <- NULL
@@ -192,11 +206,11 @@ str(targets)
 ### Call appropriate platform processing script
 
 if(opt$platform=="Affymetrix"){
-  source(file.path(getwd(),"platforms","affymetrix.R"))
+  source(file.path(codebase_dir,"platforms","affymetrix.R"))
 }else if(opt$platform=="Agilent 1-channel"){
-  source(file.path(getwd(),"platforms","agilent_one_channel.R"))
+  source(file.path(codebase_dir,"platforms","agilent_one_channel.R"))
 }else if(opt$platform=="Agilent 2-channel"){
-  source(file.path(getwd(),"platforms","agilent_two_channel.R"))
+  source(file.path(codebase_dir,"platforms","agilent_two_channel.R"))
 }else{
   print_help(opt_parser)
   stop("Platform not currently supported.n", call.=FALSE)

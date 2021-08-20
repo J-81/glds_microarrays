@@ -1,11 +1,11 @@
 name: glds_microarrays
 channels:
-   - bioconda
    - conda-forge
+   - bioconda
    - defaults
 dependencies:
    - python=3.8
-   - r-base=4.0
+   - r-base=4.1
    - r-shiny
    - r-markdown
    - r-knitr
@@ -23,10 +23,12 @@ dependencies:
    - bioconductor-help
    - bioconductor-beadarray
    - bioconductor-biocgenerics
+   - bioconductor-org.at.tair.db
+     #- openblas=0.3.3
+   - r-gmodels
    - r-rsqlite
    - r-rcpp
    - r-optparse
-   - glib=2.58
    - isatools
    - peppy
    - pip

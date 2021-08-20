@@ -42,19 +42,23 @@ legend("topright",legend=targets$t1$SampleName,fill = rainbow(count))
 ```
 
 ## Normalized Box Plot
-```{r eval=(plots == "OLIGO"), echo=FALSE, warning=FALSE}
-oligo::boxplot(data,which="pm",transfo=log2, nsample=10000,main=paste0(opt$glds," Normalized Intensities"), las=2,outline=FALSE,ylab = "log2 Intensities",names=targets$t1$SampleName)
+```{r eval=(plots == "OLIGO"), echo=TRUE, warning=FALSE}
+print(data)
+#print(targets$t1$SampleName)
+#TMP oligo::boxplot(data,which="pm",transfo=log2, nsample=10000,main=paste0(opt$glds," Normalized Intensities"), las=2,outline=FALSE,ylab = "log2 Intensities",names=targets$t1$SampleName)
+oligo::boxplot(data,which="pm",transfo=log2, nsample=10000,main=paste0(opt$glds," Normalized Intensities"), las=2,outline=FALSE,ylab = "log2 Intensities")
 ```
 ```{r eval=(plots == "LIMMA"), echo=FALSE}
 boxplot(data.frame(log2(as.matrix(data))),main=paste0(opt$glds," Normalized Intensities"), las=2,outline=FALSE)
 ```
 
 ## Normalized PCA Plot
-```{r echo=FALSE, message=FALSE, warning=FALSE, eval=(targets$labels == 1)}
+```{r echo=TRUE, message=TRUE, warning=FALSE, error=TRUE,  eval=(targets$labels == 1)}
 library(ggplot2)
 try(exp_raw <- log2(as.matrix(data)))
 try(exp_raw <- log2(exprs(data)))
-PCA_raw <- prcomp(t(exp_raw), scale. = FALSE)
+library("gmodels")
+PCA_raw <- fast.prcomp(t(exp_raw), scale. = FALSE)
 percentVar <- round(100*PCA_raw$sdev^2/sum(PCA_raw$sdev^2),1)
 sd_ratio <- sqrt(percentVar[2] / percentVar[1])
 dataGG <- data.frame(PC1 = PCA_raw$x[,1], PC2 = PCA_raw$x[,2], Group = targets$t1$Group)

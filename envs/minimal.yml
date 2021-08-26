@@ -1,0 +1,26 @@
+name: glds_microarrays_nf
+channels:
+   - conda-forge
+   - bioconda
+   - defaults
+dependencies:
+   - conda-forge::r-essentials
+   - bioconductor-oligo
+   - conda-forge::libblas=3.9.0=8_mkl
+   - r-knitr
+   - r-markdown
+   - r-optparse
+   - r-rsqlite
+   - bioconductor-stringdb
+   - bioconductor-annotationdbi
+   - bioconductor-limma
+   - r-lobstr
+   - r-vroom
+   - r-tzdb
+   - r-dt
+     # FOR GLDS-205 runs
+   - bioconductor-org.at.tair.db
+     # END FOR GLDS-205 runs
+   - pip
+   - pip:
+     - git+https://github.com/J-81/Analysis_Staging.git@0.3.4-dev

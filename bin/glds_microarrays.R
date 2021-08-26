@@ -1,6 +1,21 @@
 #!/usr/bin/env Rscript
 
 
+### Get path of launched main script
+args <- commandArgs(trailingOnly = FALSE)
+codebase_dir <- dirname(sub("--file=","",args[grep("--file=", args)]))
+
+### Enable better error traceback messaging
+### Disable for production as this will cause R to not return an error code back to the interpreter
+#options(error = quote({
+#  dump.frames(to.file=T, dumpto='last.dump')
+#  load('last.dump.rda')
+#  print(last.dump)
+#  q()
+#}))
+
+
+
 library("optparse")
 
 option_list = list(
@@ -50,7 +65,7 @@ if (is.null(opt$glds)){
   stop("At least one argument must be supplied (GLDS)", call.=FALSE)
 }
 
-source("microarray_functions.R")
+source(file.path(codebase_dir, "microarray_functions.R"))
 
 ### Get Study Files
 if (length(opt$files) > 0){
@@ -78,23 +93,23 @@ if (length(opt$runsheet >= 1)){
 
   opt$files <- table$array_data_file_path
   
-  for (file in 1:length(opt$files)){ # test whether file path exists from runsheet, if not, tries to find it using local directory structure
-    if (file.exists(opt$files[file])){
-      cat("The file exists: ",opt$files[file],"\n")
-    } else{
-      altfile <- paste0(dirname(dirname(opt$runsheet)),"/00-RawData/",basename(opt$files[file]))
-      if (file.exists(altfile)) {
-        
-        cat("The file exists: ",altfile,"\n")
-        opt$files[file] <- altfile
-      } else {
-        
-        cat("The files do not exist: ",altfile,"  ",opt$files[file],"\n")
-      }
-    }
-  }
-  
-  cat("\nExtracted file list: ",opt$files,"\n")
+ # for (file in 1:length(opt$files)){ # test whether file path exists from runsheet, if not, tries to find it using local directory structure
+ #   if (file.exists(opt$files[file])){
+ #     cat("The file exists: ",opt$files[file],"\n")
+ #   } else{
+ #     altfile <- paste0(dirname(dirname(opt$runsheet)),"/00-RawData/",basename(opt$files[file]))
+ #     if (file.exists(altfile)) {
+ #       
+ #       cat("The file exists: ",altfile,"\n")
+ #       opt$files[file] <- altfile
+ #     } else {
+ #       
+ #       cat("The files do not exist: ",altfile,"  ",opt$files[file],"\n")
+ #     }
+ #   }
+ # }
+ # 
+ # cat("\nExtracted file list: ",opt$files,"\n")
 }
 
 if (length(opt$staging >= 1)){
@@ -125,7 +140,7 @@ if (length(opt$staging >= 1)){
 }
 ### Get organism annotation package
 options(connectionObserver = NULL)
-organism_table <- read.csv(file = file.path(getwd(),"organisms.csv"), header = TRUE, stringsAsFactors = FALSE)
+organism_table <- read.csv(file = file.path(codebase_dir,"organisms.csv"), header = TRUE, stringsAsFactors = FALSE)
 ann.dbi <- organism_table$annotations[organism_table$species == opt$species] # Organism specific gene annotation database
 ann.dbi=as.character(ann.dbi)
 if(!require(ann.dbi, character.only=TRUE)) {
@@ -192,11 +207,11 @@ str(targets)
 ### Call appropriate platform processing script
 
 if(opt$platform=="Affymetrix"){
-  source(file.path(getwd(),"platforms","affymetrix.R"))
+  source(file.path(codebase_dir,"platforms","affymetrix.R"))
 }else if(opt$platform=="Agilent 1-channel"){
-  source(file.path(getwd(),"platforms","agilent_one_channel.R"))
+  source(file.path(codebase_dir,"platforms","agilent_one_channel.R"))
 }else if(opt$platform=="Agilent 2-channel"){
-  source(file.path(getwd(),"platforms","agilent_two_channel.R"))
+  source(file.path(codebase_dir,"platforms","agilent_two_channel.R"))
 }else{
   print_help(opt_parser)
   stop("Platform not currently supported.n", call.=FALSE)

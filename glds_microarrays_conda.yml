@@ -26,6 +26,7 @@ dependencies:
    - r-rsqlite
    - r-rcpp
    - r-optparse
+   - glib=2.58
    - isatools
    - peppy
    - pip

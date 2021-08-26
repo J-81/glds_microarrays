@@ -38,7 +38,7 @@ write.table(checksums, file.path(workdir,"Processed_Data",opt$glds,"00-RawData",
 
 ### Generate Raw Data QA HTML Report
 if(opt$reports == TRUE){
-  try(rmarkdown::render("qa_summary_raw.Rmd","html_document", output_file="raw_qa",output_dir=file.path(workdir,"Processed_Data",opt$glds,"00-RawData")))
+  try(rmarkdown::render(file.path(codebase_dir,"qa_summary_raw.rmd"),"html_document", output_file="raw_qa",output_dir=file.path(workdir,"Processed_Data",opt$glds,"00-RawData")))
 }
 
 ### Import Probe Annotation
@@ -148,7 +148,7 @@ setwd(file.path(workdir,"Processed_Data",opt$glds,"01-NormalizedData"))
 
 ### Normalized QA Report
 if(opt$reports == TRUE){
-  try(rmarkdown::render("qa_summary_normalized.Rmd","html_document", output_file="normalized_qa",output_dir=file.path(workdir,"Processed_Data",opt$glds,"01-NormalizedData")))
+  rmarkdown::render(file.path(codebase_dir,"qa_summary_normalized.rmd"),"html_document", output_file="normalized_qa",output_dir=file.path(workdir,"Processed_Data",opt$glds,"01-NormalizedData"))
 }
 
 #annotation.subset <- dplyr::select(MA.summarized$genes, contains(c("ID")))

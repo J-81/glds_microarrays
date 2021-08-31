@@ -4,7 +4,10 @@
 
 cat("\nStarting Agilent 2-channel Processing Pipeline\n")
 
-filetypes <- unique(toupper(tools::file_ext(list.files(file.path(tempin,"00-RawData")))))
+raw_files_dir <- file.path(tempin, "00-RawData")
+raw_files <- list.files(raw_files_dir)
+
+filetypes <- unique(toupper(tools::file_ext(raw_files)))
 if (length(filetypes)>1){
   cat("\nFiletypes\n",filetypes)
   stop("Execution halted due to multiple filetypes present for raw data")
@@ -15,10 +18,30 @@ cat("\n Filetype: ",filetypes, "\n")
 workdir <- opt$out
 library(limma)
 
+
+# For this platform, gzipped files need to be decompressed first
+library(GEOquery)
+if (filetypes=="GZ"){
+	dir.create("unzipped")
+	gzipped_files <- list.files(file.path(tempin, "00-RawData"), pattern="*.gz", full.names=TRUE)
+	print(gzipped_files)
+	#unzipped_files <- gunzip(gzipped_files, remove = False)i
+	for (f in gzipped_files) {
+		gunzip(f, destname = file.path("unzipped", gsub("[.]gz$", "", basename(f))), remove=FALSE)
+	}
+	unzipped_files <- list.files(file.path("unzipped"), full.names=TRUE)
+	filetypes <- unique(toupper(tools::file_ext(unzipped_files)))
+	print(unzipped_files)
+	print(filetypes)
+	raw_files <- unzipped_files
+	raw_files_dir <- "unzipped"
+}
+
+
 if (filetypes=="GPR"){
-  raw <- read.maimages(basename(opt$files), source="genepix", path=file.path(tempin,"00-RawData"),wt.fun=wtflags(weight=0,cutoff=-50))
+  raw <- read.maimages(raw_files, source="genepix", wt.fun=wtflags(weight=0,cutoff=-50))
 }else if (filetypes=="TXT" || filetypes=="RAW.TXT"){
-  raw <- read.maimages(basename(opt$files), source="agilent", path=file.path(tempin,"00-RawData"))
+  raw <- read.maimages(raw_files, source="agilent")
 }else{
   stop("Unsupported file extension.")
 }
@@ -38,7 +61,7 @@ write.table(checksums, file.path(workdir,"Processed_Data",opt$glds,"00-RawData",
 
 ### Generate Raw Data QA HTML Report
 if(opt$reports == TRUE){
-  try(rmarkdown::render(file.path(codebase_dir,"qa_summary_raw.rmd"),"html_document", output_file="raw_qa",output_dir=file.path(workdir,"Processed_Data",opt$glds,"00-RawData")))
+  rmarkdown::render(file.path(codebase_dir,"qa_summary_raw.rmd"),"html_document", output_file="raw_qa",output_dir=file.path("Processed_Data",opt$glds,"00-RawData"))
 }
 
 ### Import Probe Annotation
@@ -148,6 +171,9 @@ setwd(file.path(workdir,"Processed_Data",opt$glds,"01-NormalizedData"))
 
 ### Normalized QA Report
 if(opt$reports == TRUE){
+  #  THIS IS THE FUNCTION DATA, print(data)
+  print(targets)
+  data <- MA # the name used in the rmd file is data
   rmarkdown::render(file.path(codebase_dir,"qa_summary_normalized.rmd"),"html_document", output_file="normalized_qa",output_dir=file.path(workdir,"Processed_Data",opt$glds,"01-NormalizedData"))
 }
 

@@ -14,6 +14,8 @@ dependencies:
    - bioconductor-stringdb
    - bioconductor-annotationdbi
    - bioconductor-limma
+   - bioconductor-geoquery
+   - r-statmod
    - r-lobstr
    - r-vroom
    - r-tzdb

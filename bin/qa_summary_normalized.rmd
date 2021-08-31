@@ -38,7 +38,8 @@ legend("topright",legend=targets$t1$SampleName,fill = rainbow(count))
 ```
 ```{r eval=(plots == "LIMMA"), echo=FALSE}
 plotDensities(data, legend = FALSE)
-legend("topright",legend=targets$t1$SampleName,fill = rainbow(count))
+# temporary fix for missing SampleName in t1
+try(legend("topright",legend=targets$t1$SampleName,fill = rainbow(count)))
 ```
 
 ## Normalized Box Plot

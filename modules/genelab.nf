@@ -80,9 +80,8 @@ def get_runsheet_paths(LinkedHashMap row) {
     meta.id                         = row.sample_name
     meta.organism_sci               = row.organism.replaceAll(" ","_").toLowerCase()
     meta.organism_non_sci           = ORGANISMS[meta.organism_sci]
+    meta.raw_file_comment           = row["Comment[Array Data File Name]"]
+    meta.raw_file                   = row["array_data_file"]
 
-    def array = []
-    def raw_files = []
-    array = [meta, raw_files]
-    return array
+    return meta
 }

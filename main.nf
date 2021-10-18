@@ -1,58 +1,62 @@
 nextflow.enable.dsl=2
+// color defs
+c_back_bright_red = "\u001b[41;1m";
+c_bright_green = "\u001b[32;1m";
+c_blue = "\033[0;34m";
+c_reset = "\033[0m";
 
+/**************************************************
+* HELP MENU  **************************************
+**************************************************/
+if (params.help) {
+  println("┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅")
+  println("┇  Microarray Processing Pipeline: $workflow.manifest.version  ┇")
+  println("┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅")
+  println("usage: nextflow run J-81/glds_microarrays -r $workflow.revision --gldsAccession GLDS-000 [--isaArchive] [--skipVV] [--outputDir] [--stageLocal]") 
+  println()
+  println("required arguments:")
+  println("  --gldsAccession GLDS-000")
+  println("                        the GLDS accession id to process through the RNASeq Concensus Pipeline.")
+  println("optional arguments:")
+  println("  --help                show this help message and exit")
+  println("  --isaArchive          supplies an isa archive file instead of retrieving the isa archive from the GeneLab repository")
+  println("  --skipVV              skip automated V&V processes. Default: false")
+  println("  --outputDir           directory to save staged raw files and processed files. Default: <launch directory>")
+  println("  --stageLocal          download the raw reads files for the supplied GLDS accession id.  Set to false to disable raw read download and processing.  Default: true")
+  exit 0
+  }
 
-process RUN {
-  conda = "${projectDir}/envs/minimal.yml"
-  publishDir = "${ params.outputDir }/${ params.gldsAccession }"
+println "PARAMS: $params"
 
-  input:
-    path(runsheet)
-    val(gldsAccession)
+/**************************************************
+* CHECK REQUIRED PARAMS AND LOAD  *****************
+**************************************************/
+// Get all params sourced data into channels
+// Set up channel containing glds accession number
+if ( params.gldsAccession ) {ch_glds_accession = Channel.from( params.gldsAccession )} else { exit 1, "Missing Required Parameter: gldsAccession. Example for setting on CLI: --gldsAccession GLDS-194"}
 
-  output:
-    path("Processed_Data/*")
+if ( !params.outputDir ) {  params.outputDir = "$workflow.launchDir" }
 
-  script:
-    """
-	glds_microarrays.R --glds ${gldsAccession} --reports --runsheet ${runsheet}
-    """
-
+/**************************************************
+* DEBUG WARNING  **********************************
+**************************************************/
+if ( null ) {
+  println("${c_back_bright_red}WARNING WARNING: DEBUG OPTIONS ENABLED!")
+  println("WARNING WARNING: DEBUG OPTIONS ENABLED!${c_reset}")
+} else {
 }
 
+/**************************************************
+* WORKFLOW SPECIFIC PRINTOUTS  ********************
+**************************************************/
 
-/* Processes dealing with retrieving data from GeneLab
-*/
-process MICROARRAY_RUNSHEET_FROM_GLDS {
-  // Downloads isazip and creates run sheets using GeneLab API
-  tag "${ glds_accession }"
-  publishDir "${ params.outputDir }/${ params.gldsAccession }/Metadata",
-    mode: params.publish_dir_mode
+include { RUN } from "./modules/genelab.nf"
 
-  input:
-    val(glds_accession)
-    val(isa_archive)
 
-  output:
-    path("AST_autogen_*_${ glds_accession }_*.csv"), emit: runsheet
-
-  script:
-    if ( !isa_archive )
-    """
-    retrieve_isa_from_genelab.py --accession ${ glds_accession }\
-                                 --alternate-url \
-                                 --to-Microarray-runsheet
-    """
-    else
-    """
-    retrieve_isa_from_genelab.py --accession ${ glds_accession }\
-                                 --local-isa-zip ${ isa_archive }\
-                                 --to-Microarray-runsheet 
-    """
-}
-
+include { staging as STAGING } from './stage_analysis.nf'
 
 workflow {
   main:
-    MICROARRAY_RUNSHEET_FROM_GLDS( params.gldsAccession, params.isa_archive )
-    RUN( MICROARRAY_RUNSHEET_FROM_GLDS.out.runsheet, params.gldsAccession )
+    STAGING( params.gldsAccession )
+    RUN( STAGING.out.runsheet, params.gldsAccession )
 }

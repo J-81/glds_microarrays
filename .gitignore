@@ -3,3 +3,5 @@
 .RData
 .Ruserdata
 *.swp
+*.swo
+*.rda

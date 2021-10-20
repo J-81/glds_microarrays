@@ -10,4 +10,4 @@ dependencies:
    - peppy
    - pip
    - pip:
-     - git+https://github.com/J-81/Analysis_Staging.git@0.4.0-beta.4
+     - git+https://github.com/J-81/Analysis_Staging.git@0.4.0-beta.5

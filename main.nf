@@ -20,6 +20,7 @@ if (params.help) {
   println("optional arguments:")
   println("  --help                show this help message and exit")
   println("  --isaArchive          supplies an isa archive file instead of retrieving the isa archive from the GeneLab repository")
+  println("  --runsheet            supplies the path to a runsheet instead of generating the runsheet based on the GeneLab repository")
   println("  --skipVV              skip automated V&V processes. Default: false")
   println("  --outputDir           directory to save staged raw files and processed files. Default: <launch directory>")
   println("  --stageLocal          download the raw reads files for the supplied GLDS accession id.  Set to false to disable raw read download and processing.  Default: true")
@@ -51,6 +52,10 @@ if ( null ) {
 **************************************************/
 
 include { RUN } from "./modules/genelab.nf"
+include { QA_RAW;
+          READ_RAW;
+          NORMALIZE;
+          LOAD_RUNSHEET } from "./modules/microarray.nf"
 
 
 include { staging as STAGING } from './stage_analysis.nf'
@@ -58,5 +63,16 @@ include { staging as STAGING } from './stage_analysis.nf'
 workflow {
   main:
     STAGING( params.gldsAccession )
-    RUN( STAGING.out.runsheet, params.gldsAccession )
+    
+    STAGING.out.raw_files | map {it[1]} | unique { it.name } | collect | set{ ch_raw_files } 
+
+    STAGING.out.raw_files | map {it[0]} | first | set { ch_meta }
+
+    ch_raw_files | READ_RAW | NORMALIZE 
+
+    LOAD_RUNSHEET( STAGING.out.runsheet, params.gldsAccession, ch_meta )
+
+    QA_RAW( READ_RAW.out, LOAD_RUNSHEET.out )
+
+    // RUN( STAGING.out.runsheet, params.gldsAccession, ch_raw_files )
 }

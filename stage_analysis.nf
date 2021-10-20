@@ -23,15 +23,21 @@ workflow staging{
   main:
 
     isa_ch = Channel.fromPath( params.isaArchive )
-    RUNSHEET_FROM_GLDS( params.gldsAccession, isa_ch )
+    if ( !params.runsheet ) {
+    	RUNSHEET_FROM_GLDS( params.gldsAccession, isa_ch ) | set { ch_runsheet }
+    }
+    else {
+    ch_runsheet = Channel.fromPath( params.runsheet )
+    }
 
-    RUNSHEET_FROM_GLDS.out.runsheet | splitCsv(header: true)
-                                    | map{ row -> get_runsheet_paths(row) }
-                                    | set{ ch_samples }
+    ch_runsheet | splitCsv(header: true)
+                | map{ row -> get_runsheet_paths(row) }
+                | set{ ch_samples }
+
     ch_samples | first | view
     STAGE_RAW_FILES( ch_samples )
 
     emit:
       raw_files = params.stageLocal ? STAGE_RAW_FILES.out : null
-      runsheet = RUNSHEET_FROM_GLDS.out.runsheet
+      runsheet = ch_runsheet
 }

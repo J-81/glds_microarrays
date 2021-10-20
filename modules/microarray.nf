@@ -1,0 +1,155 @@
+process LOAD_RUNSHEET {
+  conda = "${projectDir}/envs/minimal.yml"
+
+  input:
+    path(runsheet)
+    val(gldsAccession)
+    val(meta)
+  
+  output:
+    path("runsheet.RData")
+  
+  script:
+    """
+    #! /usr/bin/env Rscript
+
+    codebase_dir <- file.path("${ workflow.projectDir }","bin")
+    
+    source(file.path(codebase_dir, "microarray_functions.R"))
+
+    targets <- stagingTargets("${ runsheet }")  
+    
+    targets\$glds <- "${ gldsAccession }"
+    targets\$platform <- "${ meta.platform }"
+    targets\$organism <- "${ meta.organism }"
+    print(targets)
+    
+    save(targets, file="runsheet.RData") 
+    """
+}
+
+process QA_RAW {
+  conda = "${projectDir}/envs/minimal.yml"
+  publishDir "${ params.outputDir }/${ params.gldsAccession }/00-RawData",
+    mode: params.publish_dir_mode
+
+  input:
+    path(runsheet_RData)
+    path(raw_files_RData)
+  
+  output:
+    path("raw_qa.html")
+  
+  script:
+    """
+    #! /usr/bin/env Rscript
+
+    codebase_dir <- file.path("${ workflow.projectDir }","bin")
+ 
+    load("${ runsheet_RData }") # named 'targets'
+    load("${ raw_files_RData }") # named 'raw'
+    
+    
+    if ((targets\$platform == "Affymetrix") | (targets\$platform == "Nimblegen 1-channel")){
+      plots <- "OLIGO"
+    }else if((targets\$platform == "Illumina Expression") | (targets\$platform == "Agilent 1-channel") | (targets\$platform == "Agilent 2-channel") | (targets\$platform == "Nimblegen 2-channel")){
+      plots <- "LIMMA"
+    }else {
+      plots <- NULL
+    }
+ 
+    rmarkdown::render(file.path(codebase_dir,"qa_summary_raw.rmd"),
+                      "html_document", 
+                      output_file="raw_qa",
+                      output_dir=getwd())
+    """
+}
+
+process NORMALIZE {
+  conda = "${projectDir}/envs/minimal.yml"
+  //publishDir "${ params.outputDir }/${ params.gldsAccession }/00-RawData",
+  //  mode: params.publish_dir_mode
+
+  input:
+    path(raw_files_RData)
+  
+  output:
+    path("normalized.RData")
+  
+  script:
+    """
+    #! /usr/bin/env Rscript
+
+    codebase_dir <- file.path("${ workflow.projectDir }","bin")
+ 
+    load("${ raw_files_RData }") # named 'raw'
+    
+    ### Background Correction and Normalization
+    if (class(raw)=="ExonFeatureSet" || class(raw)=="GeneFeatureSet"){
+      data <- oligo::rma(raw, target = "core", background=TRUE, normalize=TRUE)
+      data.bgonly <- oligo::rma(raw, target = "core", background=TRUE, normalize=FALSE)
+      cat("RMA background correction and quantile normalization performed with gene level summarization.\n")
+    }
+    
+    if (class(raw)=="ExpressionFeatureSet"){
+      data <- oligo::rma(raw, normalize = TRUE, background = TRUE)
+      data.bgonly <- oligo::rma(raw, normalize = FALSE, background = TRUE)
+      cat("RMA background correction and quantile normalization performed.\n")
+    }
+
+    save(data, file="normalized.RData")
+    """
+}
+
+process READ_RAW {
+  conda = "${projectDir}/envs/minimal.yml"
+
+  input:
+    path(raw_files)
+  
+  output:
+    path("raw.Rdata")
+  
+  script:
+    raw_file_extension = raw_files[0].extension
+    if ( raw_file_extension == "CEL")
+    """
+    #! /usr/bin/env Rscript
+    library(oligo)
+    
+    celFiles <- Sys.glob(file.path("*.CEL"))
+    print(celFiles)
+    raw <- oligo::read.celfiles(celFiles)
+
+    save(raw, file="raw.Rdata")
+    print("Saved to 'raw.Rdata'")
+    """
+    else
+    """
+    echo "No read in for this file extension is known"
+    """
+}
+
+process DETERMINE_PLATFORM_DESIGN {
+  conda = "${projectDir}/envs/minimal.yml"
+
+  input:
+    path(runsheet)
+  
+  output:
+    path("platform_design.txt")
+  
+  script:
+    """
+    #! /usr/bin/env Rscript
+    library(oligo)
+    
+    celFiles <- Sys.glob(file.path("raw_files","*.CEL"))
+    print(celFiles)
+    raw <- oligo::read.celfiles(celFiles)
+
+    save(raw, file="raw.Rdata")
+    print("Saved to 'raw.Rdata'")
+    """
+}
+

@@ -53,6 +53,7 @@ if ( null ) {
 
 include { RUN } from "./modules/genelab.nf"
 include { QA_RAW;
+          QA_NORMALIZED;
           READ_RAW;
           NORMALIZE;
           LOAD_RUNSHEET } from "./modules/microarray.nf"
@@ -66,13 +67,14 @@ workflow {
     
     STAGING.out.raw_files | map {it[1]} | unique { it.name } | collect | set{ ch_raw_files } 
 
-    STAGING.out.raw_files | map {it[0]} | first | set { ch_meta }
+    STAGING.out.raw_files | map {it[0]} | toSortedList | map {it[0]} |  set { ch_meta }
 
-    ch_raw_files | READ_RAW | NORMALIZE 
+    ch_raw_files | READ_RAW | NORMALIZE
 
     LOAD_RUNSHEET( STAGING.out.runsheet, params.gldsAccession, ch_meta )
 
     QA_RAW( READ_RAW.out, LOAD_RUNSHEET.out )
+    QA_NORMALIZED( NORMALIZE.out.rdata, LOAD_RUNSHEET.out )
 
     // RUN( STAGING.out.runsheet, params.gldsAccession, ch_raw_files )
 }

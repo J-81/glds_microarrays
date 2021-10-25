@@ -21,12 +21,52 @@ process LOAD_RUNSHEET {
     
     targets\$glds <- "${ gldsAccession }"
     targets\$platform <- "${ meta.platform }"
-    targets\$organism <- "${ meta.organism }"
+    targets\$organism <- "${ meta.organism_sci }"
     print(targets)
     
     save(targets, file="runsheet.RData") 
     """
 }
+
+process QA_NORMALIZED {
+  conda = "${projectDir}/envs/minimal.yml"
+  publishDir "${ params.outputDir }/${ params.gldsAccession }/01-NormalizedData",
+    mode: params.publish_dir_mode
+
+  input:
+    path(runsheet_RData)
+    path(normalized_files_RData)
+  
+  output:
+    path("normalized_qa.html")
+  
+  script:
+    """
+    #! /usr/bin/env Rscript
+
+    codebase_dir <- file.path("${ workflow.projectDir }","bin")
+ 
+    load("${ runsheet_RData }") # named 'targets'
+    load("${ normalized_files_RData }") # named 'normalized'
+
+    print(class(normalized))
+    
+    
+    if ((targets\$platform == "Affymetrix") | (targets\$platform == "Nimblegen 1-channel")){
+      plots <- "OLIGO"
+    }else if((targets\$platform == "Illumina Expression") | (targets\$platform == "Agilent 1-channel") | (targets\$platform == "Agilent 2-channel") | (targets\$platform == "Nimblegen 2-channel")){
+      plots <- "LIMMA"
+    }else {
+      plots <- NULL
+    }
+ 
+    rmarkdown::render(file.path(codebase_dir,"qa_summary_normalized.rmd"),
+                      "html_document", 
+                      output_file="normalized_qa",
+                      output_dir=getwd())
+    """
+}
+
 
 process QA_RAW {
   conda = "${projectDir}/envs/minimal.yml"
@@ -67,14 +107,16 @@ process QA_RAW {
 
 process NORMALIZE {
   conda = "${projectDir}/envs/minimal.yml"
-  //publishDir "${ params.outputDir }/${ params.gldsAccession }/00-RawData",
-  //  mode: params.publish_dir_mode
+  publishDir "${ params.outputDir }/${ params.gldsAccession }/01-NormalizedData",
+    mode: params.publish_dir_mode,
+    pattern: "normalized.txt"
 
   input:
     path(raw_files_RData)
   
   output:
-    path("normalized.RData")
+    path("normalized.RData"), emit: rdata
+    path("normalized.txt")
   
   script:
     """
@@ -86,18 +128,22 @@ process NORMALIZE {
     
     ### Background Correction and Normalization
     if (class(raw)=="ExonFeatureSet" || class(raw)=="GeneFeatureSet"){
-      data <- oligo::rma(raw, target = "core", background=TRUE, normalize=TRUE)
-      data.bgonly <- oligo::rma(raw, target = "core", background=TRUE, normalize=FALSE)
+      normalized <- oligo::rma(raw, target = "core", background=TRUE, normalize=TRUE)
+      normalized.bgonly <- oligo::rma(raw, target = "core", background=TRUE, normalize=FALSE)
       cat("RMA background correction and quantile normalization performed with gene level summarization.\n")
     }
     
     if (class(raw)=="ExpressionFeatureSet"){
-      data <- oligo::rma(raw, normalize = TRUE, background = TRUE)
-      data.bgonly <- oligo::rma(raw, normalize = FALSE, background = TRUE)
+      normalized <- oligo::rma(raw, normalize = TRUE, background = TRUE)
+      normalized.bgonly <- oligo::rma(raw, normalize = FALSE, background = TRUE)
       cat("RMA background correction and quantile normalization performed.\n")
     }
 
-    save(data, file="normalized.RData")
+    save(normalized, file="normalized.RData")
+
+    ### extract expression table and save to csv
+    expression <- data.frame(Biobase::exprs(normalized))
+    write.table(expression,"normalized.txt",quote=FALSE, append=FALSE, sep = "\t", col.names=NA)
     """
 }
 

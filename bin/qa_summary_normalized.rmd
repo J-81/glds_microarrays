@@ -1,17 +1,21 @@
 ---
-
 author: "NASA GeneLab Project"
 date: "`r Sys.Date()`"
 output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE,
+		      fig.width = 12, 
+		      fig.height = 8
+		      )
+library(limma)
 ```
-# `r opt$glds` Normalized Data QA Summary
+
+# `r targets$glds` Normalized Data QA Summary
 #### `r Sys.Date()`
-#### Organism: `r opt$species`
-#### Platform: `r opt$platform` Microarray
+#### Organism: `r targets$organism`
+#### Platform: `r targets$platform` Microarray `r class(normalized)`
 
 ## Normalized Data MA Plot
 ```{r eval=(plots == "OLIGO"), echo=FALSE}
@@ -19,7 +23,7 @@ count <- dim(targets$t1)[1]
 printrows <- ceiling(count/2)
 #par(mfrow = c(printrows,2),mar=c(1,1,1,1))
 for (i in 1:count){
-  oligo::MAplot(data, pairs=FALSE, which=i)
+  oligo::MAplot(normalized, pairs=FALSE, which=i, main="\nvs pseudo-median reference chip")
   }
 ```
 ```{r eval=(plots == "LIMMA"), echo=FALSE}
@@ -27,34 +31,39 @@ count <- dim(targets$t1)[1]
 printrows <- ceiling(count/2)
 #par(mfrow = c(printrows,2),mar=c(1,1,1,1))
 for (i in 1:count){
-  plotMD(data, column = i, xlab = "Average log-expression", ylab = "log-fold-change", main = colnames(data)[i])
+  plotMD(normalized, column = i, xlab = "Average log-expression", ylab = "log-fold-change", main = colnames(normalized)[i])
   }
 ```
 
 ## Normalized Density Distribution Plot
 ```{r eval=(plots == "OLIGO"), echo=FALSE}
-oligo::hist(data,transfo=log2, nsample=10000,main=paste0(opt$glds," Normalized Intensity Distributions"),xlab="Intentisty",ylab="Density",col=rainbow(count),lty=1)
+oligo::hist(normalized,transfo=log2, nsample=10000,main=paste0(targets$glds," Normalized Intensity Distributions"),xlab="Intensity",ylab="Density",col=rainbow(count),lty=1)
 legend("topright",legend=targets$t1$SampleName,fill = rainbow(count))
 ```
 ```{r eval=(plots == "LIMMA"), echo=FALSE}
-plotDensities(data, legend = FALSE)
+plotDensities(normalized, legend = FALSE)
 # temporary fix for missing SampleName in t1
 try(legend("topright",legend=targets$t1$SampleName,fill = rainbow(count)))
 ```
 
 ## Normalized Box Plot
 ```{r eval=(plots == "OLIGO"), echo=FALSE, warning=FALSE}
-oligo::boxplot(data,which="pm",transfo=log2, nsample=10000,main=paste0(opt$glds," Normalized Intensities"), las=2,outline=FALSE,ylab = "log2 Intensities",names=targets$t1$SampleName)
+oligo::boxplot(normalized,which="pm",transfo=log2, nsample=10000,main=paste0(targets$glds," Normalized Intensities"), las=2,outline=FALSE,ylab = "log2 Intensities",names=targets$t1$SampleName)
 ```
 ```{r eval=(plots == "LIMMA"), echo=FALSE}
-boxplot(data.frame(log2(as.matrix(data))),main=paste0(opt$glds," Normalized Intensities"), las=2,outline=FALSE)
+boxplot(data.frame(log2(as.matrix(normalized))),main=paste0(targets$glds," Normalized Intensities"), las=2,outline=FALSE)
 ```
 
 ## Normalized PCA Plot
-```{r echo=FALSE, message=FALSE, warning=FALSE, eval=(targets$labels == 1)}
+```{r echo=FALSE, message=FALSE, warning=FALSE}
 library(ggplot2)
-try(exp_raw <- log2(as.matrix(data)))
-try(exp_raw <- log2(exprs(data)))
+try(exp_raw <- log2(exprs(normalized)))
+if ( class(normalized) == "ExpressionSet" ) {
+	exp_raw <- log2(as.matrix(normalized))
+} else {
+        print(class(normalized))
+	stop("unsupported normalized data class")
+}
 PCA_raw <- prcomp(t(exp_raw), scale. = FALSE)
 percentVar <- round(100*PCA_raw$sdev^2/sum(PCA_raw$sdev^2),1)
 sd_ratio <- sqrt(percentVar[2] / percentVar[1])
@@ -65,9 +74,5 @@ PCA_plot <- ggplot(dataGG, aes(PC1, PC2)) +
   xlab(paste0("PC1, VarExp: ", percentVar[1], "%")) +
   ylab(paste0("PC2, VarExp: ", percentVar[2], "%"))
 plot(PCA_plot)
-path <- file.path(workdir,"Processed_Data",opt$glds,"01-NormalizedData")
-setwd(path)
-write.csv(PCA_raw$x, file = "visualization_PCA_table.csv")
-rm(PCA_plot,PCA_raw,exp_raw,dataGG,path,sd_ratio,percentVar)
 ```
 

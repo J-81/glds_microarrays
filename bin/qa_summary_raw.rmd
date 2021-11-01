@@ -5,55 +5,83 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE,
+		      fig.width = 12, 
+		      fig.height = 8 
+		      )
 ```
 
-# `r opt$glds` Raw Data QA Summary
+# `r targets$glds` Raw Data QA Summary
 #### `r Sys.Date()`
-#### Organism: `r opt$species`
-#### Platform: `r opt$platform` Microarray `r class(raw)`
+#### Organism: `r targets$organism`
+#### Platform: `r targets$platform` Microarray `r class(raw)`
+
 ```{r echo=FALSE}
 show(raw)
+count <- dim(targets$t1)[1]
 ```
 
 ## Study Sample Factor Grouping
-```{r echo=FALSE}
+```{r study-sample-factor-grouping, echo=FALSE}
   DT::datatable(targets$t1)
 ```
 
-## Raw Data MA Plots
-```{r eval=(plots == "OLIGO"), echo=FALSE}
-count <- dim(targets$t1)[1]
-printrows <- ceiling(count/2)
-#par(mfrow = c(printrows,2),mar=c(1,1,1,1))
+## Array Spot Log Intensity Images
+```{r array-spot-log-intensity-images-OLIGO,  eval=(plots == "OLIGO"),echo=FALSE}
 for (i in 1:count){
-  oligo::MAplot(raw,which=i, pairs=FALSE)
+  oligo::image(raw, transfo=log2, which=i)
   }
+```
+```{r array-spot-log-intensity-images-LIMMA,  eval=(plots == "LIMMA"),echo=FALSE}
+for (ind in 1:count){
+  if (targets$platform == "Agilent"){
+  r <- raw$genes$Row
+  c <- raw$genes$Col
+  nr <- max(r)
+  nc <- max(c)
+  i <- (r-1)*nc+c
+  y <- rep(NA,length(i))
+  y[i] <- log2(raw$Eb[,ind])
+  raw$printer <- list(ngrid.r=1,ngrid.c=1,nspot.r=nr,nspot.c=nc) 
+}
+  try(imageplot(y,raw$printer, main=colnames(raw$Eb)[ind]))
+  ## fix imageplot printer columns
+  }
+```
+
+## Raw Data MA Plots
+```{r ma-plots-OLIGO,  eval=(plots == "OLIGO"), echo=FALSE}
+printrows <- ceiling(count/2)
+if (class(raw) %in% c("ExpressionFeatureSet"))  {
+	for (i in 1:count){
+	  plotted <- oligo::MAplot(raw, which=i, pairs=FALSE, main="\nvs pseudo-median reference chip")
+	}
+} else {
+	stop(sprintf("Unsupported raw class '%s' in MA plot cell", class(raw) ) )
+}
 
 ```
-```{r eval=(plots == "LIMMA"), echo=FALSE}
+```{r ma-plots-LIMMA,  eval=(plots == "LIMMA"), echo=FALSE}
 count <- dim(targets$t1)[1]
 printrows <- ceiling(count/2)
-#par(mfrow = c(printrows,2),mar=c(1,1,1,1)) 
 for (i in 1:count){
   limma::plotMD(raw, column = i, xlab = "Average log-expression", ylab = "log-fold-change", main = colnames(raw)[i])
   }
-
 ```
 
 ## Raw Data Density Plot
-```{r eval=(plots == "OLIGO"), echo=FALSE}
+```{r density-plot-OLIGO,  eval=(plots == "OLIGO"), echo=FALSE}
 
 if (class(raw)=="ExonFeatureSet" || class(raw)=="GeneFeatureSet"){
-  oligo::hist(raw, main = paste0(opt$glds," Raw Intensity Distributions"), target="probeset",xlab="Intentisty",ylab="Density",col=rainbow(count),lty=1)
+  oligo::hist(raw, main = paste0(targets$glds," Raw Intensity Distributions"), target="probeset",xlab="Intensity",ylab="Density",col=rainbow(count),lty=1)
   legend("topright",legend=targets$t1$SampleName,fill = rainbow(count))
 }else{
-  oligo::hist(raw, main = paste0(opt$glds," Raw Intensity Distributions"),xlab="Intentisty",ylab="Density",col=rainbow(count),lty=1)
+  oligo::hist(raw, main = paste0(targets$glds," Raw Intensity Distributions"),xlab="Intensity",ylab="Density",col=rainbow(count),lty=1)
   legend("topright",legend=targets$t1$SampleName,fill = rainbow(count))
 }
 
 ```
-```{r eval=(plots == "LIMMA"), echo=FALSE}
+```{r density-plot-LIMMA,  eval=(plots == "LIMMA"), echo=FALSE}
 
 plotDensities(raw, legend = FALSE)
 try(legend("topright",legend=targets$t1$SampleName,fill = rainbow(count)))
@@ -61,19 +89,25 @@ try(legend("topright",legend=targets$t1$SampleName,fill = rainbow(count)))
 ```
 
 ## Raw Data Box Plot
-```{r eval=(plots == "OLIGO"), echo=FALSE}
+```{r box-plots-OLIGO, eval=(plots == "OLIGO"), echo=FALSE}
+longest_sample_name_length <- max(nchar(sampleNames(raw))) * 0.5
+bottom_margin <- min(30, longest_sample_name_length)
+par(mar=c(bottom_margin,2,1,1))
 if (class(raw)=="ExonFeatureSet" || class(raw)=="GeneFeatureSet"){
-oligo::boxplot(raw,which="pm",transfo=log2, nsample=10000,main=paste0(opt$glds," Raw Data Log2 Intensities"), las=2,outline=FALSE,ylab = "log2 Intensities", target="probeset")
+oligo::boxplot(raw,which="pm",transfo=log2, nsample=10000,main=paste0(targets$glds," Raw Data Log2 Intensities"), las=2,outline=FALSE,ylab = "log2 Intensities", target="probeset")
 }else{
-oligo::boxplot(raw,which="pm",transfo=log2, nsample=10000,main=paste0(opt$glds," Raw Data Log2 Intensities"), las=2,outline=FALSE,ylab = "log2 Intensities")
+oligo::boxplot(raw,which="pm",transfo=log2, nsample=10000,main=paste0(targets$glds," Raw Data Log2 Intensities"), las=2,outline=FALSE,ylab = "log2 Intensities")
 }
 ```
-```{r eval=(plots == "LIMMA"), echo=FALSE}
+```{r box-plots-LIMMA,  eval=(plots == "LIMMA"), echo=FALSE}
+longest_sample_name_length <- max(nchar(sampleNames(raw))) * 0.5
+bottom_margin <- min(30, longest_sample_name_length)
+par(mar=c(bottom_margin,2,1,1))
 boxplot(data.frame(log2(as.matrix(raw))),main="Raw Data Log2 Intensities", las=2,outline=FALSE)
 ```
 
 ## Raw Data PCA Plot
-```{r echo=FALSE, message=FALSE, warning=FALSE, eval=(targets$labels == 1)}
+```{r pca-plot,  echo=FALSE, message=FALSE, warning=FALSE}
 library(ggplot2)
 try(exp_raw <- log2(exprs(raw)))
 try(exp_raw <- log2(as.matrix(raw)))
@@ -89,34 +123,5 @@ PCA_plot <- ggplot(dataGG, aes(PC1, PC2)) +
   ylab(paste0("PC2, VarExp: ", percentVar[2], "%"))
 plot(PCA_plot)
 
-path <- file.path(workdir,"Processed_Data",opt$glds,"00-RawData")
-setwd(path)
-write.csv(PCA_raw$x, file = "visualization_PCA_table.csv")
-rm(exp_raw, PCA_raw,dataGG, PCA_plot,percentVar,sd_ratio,path)
 ```
 
-## Array Spot Log Intensity Images
-```{r eval=(plots == "OLIGO"),echo=FALSE}
-
-#par(mfrow = c(printrows,2),mar=c(1,1,1,1))
-for (i in 1:count){
-  oligo::image(raw, transfo=log2, which=i)
-  }
-```
-```{r eval=(plots == "LIMMA"),echo=FALSE}
-#par(mfrow = c(printrows,2),mar=c(1,1,1,1))
-for (ind in 1:count){
-  if (opt$platform == "Agilent"){
-  r <- raw$genes$Row
-  c <- raw$genes$Col
-  nr <- max(r)
-  nc <- max(c)
-  i <- (r-1)*nc+c
-  y <- rep(NA,length(i))
-  y[i] <- log2(raw$Eb[,ind])
-  raw$printer <- list(ngrid.r=1,ngrid.c=1,nspot.r=nr,nspot.c=nc) 
-}
-  try(imageplot(y,raw$printer, main=colnames(raw$Eb)[ind]))
-  ## fix imageplot printer columns
-  }
-```

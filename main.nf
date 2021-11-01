@@ -51,13 +51,13 @@ if ( null ) {
 * WORKFLOW SPECIFIC PRINTOUTS  ********************
 **************************************************/
 
-include { RUN } from "./modules/genelab.nf"
 include { QA_RAW;
           QA_NORMALIZED;
-          READ_RAW;
+	  READ_RAW;
+          IMPORT_PROBE;
           NORMALIZE;
+          DGE;
           LOAD_RUNSHEET } from "./modules/microarray.nf"
-
 
 include { staging as STAGING } from './stage_analysis.nf'
 
@@ -65,7 +65,7 @@ workflow {
   main:
     STAGING( params.gldsAccession )
     
-    STAGING.out.raw_files | map {it[1]} | unique { it.name } | collect | set{ ch_raw_files } 
+    STAGING.out.raw_files | map {it[1]} | unique { it.name } | toSortedList | set{ ch_raw_files } 
 
     STAGING.out.raw_files | map {it[0]} | toSortedList | map {it[0]} |  set { ch_meta }
 
@@ -73,9 +73,11 @@ workflow {
 
     READ_RAW( ch_raw_files, LOAD_RUNSHEET.out )
     NORMALIZE( READ_RAW.out, LOAD_RUNSHEET.out )
+    IMPORT_PROBE( READ_RAW.out, LOAD_RUNSHEET.out, NORMALIZE.out.rdata )
+
+    DGE( IMPORT_PROBE.out.annotated_rdata,  LOAD_RUNSHEET.out )
 
     QA_RAW( READ_RAW.out, LOAD_RUNSHEET.out )
     QA_NORMALIZED( NORMALIZE.out.rdata, LOAD_RUNSHEET.out )
 
-    // RUN( STAGING.out.runsheet, params.gldsAccession, ch_raw_files )
 }

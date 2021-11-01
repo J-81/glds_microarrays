@@ -65,9 +65,9 @@ workflow {
   main:
     STAGING( params.gldsAccession )
     
-    STAGING.out.raw_files | map {it[1]} | unique { it.name } | toSortedList | set{ ch_raw_files } 
+    STAGING.out.raw_files | map {it[1]} | unique { it.name } | toSortedList | view | set{ ch_raw_files } 
 
-    STAGING.out.raw_files | map {it[0]} | toSortedList | map {it[0]} |  set { ch_meta }
+    STAGING.out.raw_files | map {it[0]} | toSortedList | map {it[0]} | view | set { ch_meta }
 
     LOAD_RUNSHEET( STAGING.out.runsheet, params.gldsAccession, ch_meta )
 

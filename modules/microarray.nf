@@ -88,7 +88,8 @@ process QA_RAW {
  
     load("${ runsheet_RData }") # named 'targets'
     load("${ raw_files_RData }") # named 'raw'
-    
+   
+    # 4 
     
     if ((targets\$platform == "Affymetrix") | (targets\$platform == "Nimblegen 1-channel")){
       plots <- "OLIGO"
@@ -113,6 +114,7 @@ process NORMALIZE {
 
   input:
     path(raw_files_RData)
+    path(runsheet_RData)
   
   output:
     path("normalized.RData"), emit: rdata
@@ -152,6 +154,7 @@ process READ_RAW {
 
   input:
     path(raw_files)
+    path(runsheet_RData)
   
   output:
     path("raw.Rdata")
@@ -162,10 +165,15 @@ process READ_RAW {
     """
     #! /usr/bin/env Rscript
     library(oligo)
+    library(stringr)
     
-    celFiles <- Sys.glob(file.path("*.CEL"))
-    print(celFiles)
-    raw <- oligo::read.celfiles(celFiles)
+    load("${ runsheet_RData }") # named 'targets'
+
+    # remove potential .gz from FileNames
+    # decompression happens during staging
+    target_filenames <- str_replace_all(targets\$t3\$FileName, ".gz\$", "")
+    
+    raw <- oligo::read.celfiles(target_filenames, sampleNames=targets\$t3\$SampleName)
 
     save(raw, file="raw.Rdata")
     print("Saved to 'raw.Rdata'")

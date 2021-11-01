@@ -69,9 +69,10 @@ workflow {
 
     STAGING.out.raw_files | map {it[0]} | toSortedList | map {it[0]} |  set { ch_meta }
 
-    ch_raw_files | READ_RAW | NORMALIZE
-
     LOAD_RUNSHEET( STAGING.out.runsheet, params.gldsAccession, ch_meta )
+
+    READ_RAW( ch_raw_files, LOAD_RUNSHEET.out )
+    NORMALIZE( READ_RAW.out, LOAD_RUNSHEET.out )
 
     QA_RAW( READ_RAW.out, LOAD_RUNSHEET.out )
     QA_NORMALIZED( NORMALIZE.out.rdata, LOAD_RUNSHEET.out )

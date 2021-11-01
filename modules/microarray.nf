@@ -40,10 +40,12 @@ process QA_NORMALIZED {
   
   output:
     path("normalized_qa.html")
+    path("visualization_PCA_table.csv")
   
   script:
     """
     #! /usr/bin/env Rscript
+    #2
 
     codebase_dir <- file.path("${ workflow.projectDir }","bin")
  
@@ -64,7 +66,8 @@ process QA_NORMALIZED {
     rmarkdown::render(file.path(codebase_dir,"qa_summary_normalized.rmd"),
                       "html_document", 
                       output_file="normalized_qa",
-                      output_dir=getwd())
+                      output_dir=getwd()) # generates PCA_raw
+    write.csv(PCA_raw\$x, file = "visualization_PCA_table.csv")
     """
 }
 
@@ -80,17 +83,18 @@ process QA_RAW {
   
   output:
     path("raw_qa.html")
+    path("raw_visualization_PCA_table.csv")
   
   script:
     """
     #! /usr/bin/env Rscript
+    # 3i 
 
     codebase_dir <- file.path("${ workflow.projectDir }","bin")
  
     load("${ runsheet_RData }") # named 'targets'
     load("${ raw_files_RData }") # named 'raw'
    
-    # 4 
     
     if ((targets\$platform == "Affymetrix") | (targets\$platform == "Nimblegen 1-channel")){
       plots <- "OLIGO"
@@ -103,7 +107,9 @@ process QA_RAW {
     rmarkdown::render(file.path(codebase_dir,"qa_summary_raw.rmd"),
                       "html_document", 
                       output_file="raw_qa",
-                      output_dir=getwd())
+                      output_dir=getwd()) # generates PCA_raw
+
+    write.csv(PCA_raw\$x, file = "raw_visualization_PCA_table.csv")
     """
 }
 

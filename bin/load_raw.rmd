@@ -1,0 +1,89 @@
+---
+author: "NASA GeneLab Project"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+		      fig.width = 12, 
+		      fig.height = 8,
+		      root.dir = getwd(),
+		      error = TRUE # since endpoints include saved data, this is safe as requisite data not being saved will block workflow progression.  This allows a debugger to see the erroring Rmarkdown report.
+		      )
+supported = FALSE
+# load libraries, could be moved to specific chunks if overloading becomes an issue, but easy to remove load related print outs in this chunk
+library(limma)
+library(oligo)
+```
+
+# `r targets$glds` Load Raw Data Notebook
+#### `r Sys.Date()`
+#### Organism: `r targets$organism`
+#### Platform: `r targets$platform` Microarray
+
+## Raw Files Listing
+```{r raw-files-listing}
+print(targets$filetype)
+print(targets$raw_files)
+```
+
+## Mapping Appropriate Loading Protocol
+``` {r flag-setting}
+channel_1_txt_flag <- ((targets$filetype %in% c("TXT","RAW.TXT")) & (targets$channels == 1))
+channel_2_txt_flag <- ((targets$filetype %in% c("TXT","RAW.TXT")) & (targets$channels == 2))
+channel_1_gpr_flag <- ((targets$filetype %in% c("GPR")) & (targets$channels == 1))
+channel_2_gpr_flag <- ((targets$filetype %in% c("GPR")) & (targets$channels == 2))
+channel_1_cel_flag <- ((targets$filetype %in% c("CEL")) & (targets$channels == 1)) # note, cel format should always be single channel so the channels check is redudant
+
+supported_flags <- sum(
+channel_1_txt_flag, 
+channel_2_txt_flag, 
+channel_1_gpr_flag, 
+channel_2_gpr_flag, 
+channel_1_cel_flag, 
+)
+
+if (supported_flags != 1) { 
+    stop(sprintf("Error: One and only one flag condition should be met. Flag conditions met: %d,  see flag conditions in this markdown file", supported_flags))
+}
+```
+
+## Raw File Loading
+```{r raw-file-loading-1-channel-txt, eval=(channel_1_txt_flag), include=(channel_1_txt_flag)}
+raw_data <- read.maimages(basename(targets$raw_files), 
+		          source="agilent", 
+		          green.only=TRUE, 
+		     	  names = targets$t1$SampleName)
+```
+
+```{r raw-file-loading-1-channel-gpr, eval=(channel_1_gpr_flag), include=(channel_1_gpr_flag)}
+raw_data <- read.maimages(basename(targets$raw_files), 
+		          source="genepix", 
+		          wt.fun=wtflags(weight=0,cutoff=-50), 
+		          green.only=TRUE, 
+		          names = targets$t1$SampleName)
+```
+
+```{r raw-file-loading-2-channel-gpr, eval=(channel_2_gpr_flag), include=(channel_2_gpr_flag)}
+files <- unique(basename(targets$raw_files))
+raw_data <- read.maimages(files,
+		          source="genepix", 
+		          wt.fun=wtflags(weight=0,cutoff=-50))
+```
+
+```{r raw-file-loading-2-channel-txt, eval=(channel_2_txt_flag), include=(channel_2_txt_flag)}
+files <- unique(basename(targets$raw_files))
+raw_data <- read.maimages(files, 
+		          source="agilent")
+```
+
+```{r raw-file-loading-1-channel-cel, eval=(channel_1_cel_flag), include=(channel_1_cel_flag)}
+raw_data <- oligo::read.celfiles(targets$raw_files)
+```
+
+## Status
+```{r status, echo=FALSE}
+sprintf("Raw files successfully loaded as class %s. Saving 'raw' to Rdata file", class(raw_data))
+save(raw_data, file="raw_data.Rdata")
+```

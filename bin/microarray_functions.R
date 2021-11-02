@@ -21,14 +21,23 @@ headers<-list(
   CSIRO_Spot=c("grid_c","grid_r","spot_c","spot_r","indexs"))
 
 ### Use API staging script
-stagingTargets <- function(opt) {
+library(stringr)
+stagingTargets <- function(runsheet_path) {
 
     na_strings <- c('NA','na','null','NULL','Null','')
     target<-list()
+    table <- read.csv(runsheet_path,header = TRUE, stringsAsFactors = FALSE)
     study_samples <- table$sample_name
-    target$labels = length(unique(table$Label))
+    target$channels = length(unique(table$Label))
     labelnames <- unique(table$Label)
     files <- table$array_data_file
+    target$raw_files <- str_remove(files,".gz$")
+    filetypes <- unique(toupper(tools::file_ext(target$raw_files)))
+    if (length(filetypes)>1){
+      cat("\nFiletypes\n",filetypes)
+      stop("Execution halted due to multiple filetypes present for raw data")
+    }
+    target$filetype <- filetypes
     target$seperate_channel_files <- eval((length(unique(files)) == 2*length(unique(table$Hybridization.Assay.Name))))
     factorcols <- sapply(colnames(table),function(x) {stringr::str_detect(x,"Factor")})
    
@@ -41,18 +50,18 @@ stagingTargets <- function(opt) {
     table$Source.Name <- sub("\\ \\d+", "", table$Source.Name)
     print(colnames(table))
     
-    if ((target$labels == 1) && (target$seperate_channel_files == FALSE)){
+    if ((target$channels == 1) && (target$seperate_channel_files == FALSE)){
       cat("One color microarray design...","\n")
       target$t1 <- data.frame(SampleName=table$sample_name, Group=group, ArrayName=table$Hybridization.Assay.Name, FileName=files)
       target$t1$SourceName <- table$Source.Name
       target$t1 <- cbind(target$t1,factors)
       target$paired_samples <- (length(unique(target$t1$SourceName)) < length(unique(target$t1$SampleName)))
-    }else if ((target$labels == 2) && (target$seperate_channel_files == FALSE)){
+    }else if ((target$channels == 2) && (target$seperate_channel_files == FALSE)){
       cat("Two color microarray design...","\n")
       target$t1 <- data.frame(Label=table$Label, Group=group, ArrayName=table$Hybridization.Assay.Name, FileName=files)
       
       target$t1 <- tidyr::pivot_wider(target$t1, names_from = Label, values_from = Group)
-    }else if ((target$labels == 1) && (target$seperate_channel_files == TRUE)){
+    }else if ((target$channels == 1) && (target$seperate_channel_files == TRUE)){
       cat("One color microarray design with seperate channel files...","\n")
       target$t1 <- data.frame(SampleName=table$sample_name, Group=group, ArrayName=table$Hybridization.Assay.Name, FileName=files)      
       target$t1$SourceName <- table$Source.Name
@@ -61,7 +70,7 @@ stagingTargets <- function(opt) {
       target$t1 <- tidyr::pivot_wider(target$t1, names_from = Label, values_from = FileName)
       target$t1 <- cbind(target$t1,factors)
       target$paired_samples <- (length(unique(target$t1$SourceName)) < length(unique(target$t1$SampleName)))
-    }else if ((target$labels == 2) && (target$seperate_channel_files == TRUE)){
+    }else if ((target$channels == 2) && (target$seperate_channel_files == TRUE)){
       cat("Two color microarray design with seperate channel files...","\n")
       target$t1 <- data.frame(Label=table$Label, Group=group, ArrayName=table$Hybridization.Assay.Name, FileName=files)
       target$t1 <- target$t1[order(target$t1$FileName,target$t1$Label),]
@@ -75,13 +84,13 @@ stagingTargets <- function(opt) {
     
     target$technical_replicates <- (length(unique(target$t1$ArrayName)) < dim(target$t1)[1])
     
-    if (target$labels == 2){
+    if (target$channels == 2){
       group_pairs <- target$t1[,labelnames]
       Ref <- as.data.frame(t(apply(group_pairs,1,function(x){unique(group) %in% x})))
       Ref <- apply(Ref,2,all)
       Ref_group <- unique(group)[Ref] # groups common to all arrays
-      sample_pairs <- table[,which(colnames(table) %in% c("Label","Sample.Name", "Hybridization.Assay.Name"))]
-      sample_pairs <- tidyr::pivot_wider(sample_pairs, names_from = Label, values_from = `Sample.Name`, id_cols = `Hybridization.Assay.Name`)
+      sample_pairs <- table[,which(colnames(table) %in% c("Label","sample_name", "Hybridization.Assay.Name"))]
+      sample_pairs <- tidyr::pivot_wider(sample_pairs, names_from = Label, values_from = `sample_name`, id_cols = `Hybridization.Assay.Name`)
       sample_pairs <- sample_pairs[,-c(1)]
       common_samples <- as.data.frame(t(apply(sample_pairs,1,function(x){unique(table$sample_name) %in% x})))
       common_samples <- unique(table$sample_name)[which(apply(common_samples,2,all))]
@@ -118,18 +127,8 @@ stagingTargets <- function(opt) {
     try({target$t3[,label_cols[1]] <- sapply(target$t1[,label_cols[1]],function(x){make.names(x,unique = FALSE, allow_ = TRUE)})},silent = TRUE)
     try({target$t3[,label_cols[2]] <- sapply(target$t1[,label_cols[2]],function(x){make.names(x,unique = FALSE, allow_ = TRUE)})},silent = TRUE)
     
-    
-    
-    
   
   return(target)
 
-    }
-
-staging <- function(opt,tempin){
-  
-  table <- read.csv(opt$staging,header = TRUE, stringsAsFactors = FALSE)
-  
-  return(tempin)
 }
 

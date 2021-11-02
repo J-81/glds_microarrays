@@ -29,7 +29,7 @@ print(targets$raw_files)
 ```
 
 ## Mapping Appropriate Loading Protocol
-``` {r flag-setting}
+``` {r flag-setting, error=FALSE}
 channel_1_txt_flag <- ((targets$filetype %in% c("TXT","RAW.TXT")) & (targets$channels == 1))
 channel_2_txt_flag <- ((targets$filetype %in% c("TXT","RAW.TXT")) & (targets$channels == 2))
 channel_1_gpr_flag <- ((targets$filetype %in% c("GPR")) & (targets$channels == 1))
@@ -43,7 +43,9 @@ channel_1_gpr_flag,
 channel_2_gpr_flag, 
 channel_1_cel_flag 
 )
+```
 
+``` {r check-flags}
 if (supported_flags != 1) { 
     stop(sprintf("Error: One and only one flag condition should be met. Flag conditions met: %d,  see flag conditions in this markdown file", supported_flags))
 }

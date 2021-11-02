@@ -164,55 +164,27 @@ process READ_RAW {
     path(runsheet_RData)
   
   output:
-    path("raw.Rdata")
+    path("raw_data.Rdata")
   
   script:
-    raw_file_extension = raw_files[0].extension
-    if ( raw_file_extension == "CEL")
     """
     #! /usr/bin/env Rscript
-    library(oligo)
-    library(stringr)
-    
+    # 3i 
+
+    codebase_dir <- file.path("${ workflow.projectDir }","bin")
+ 
     load("${ runsheet_RData }") # named 'targets'
-
-    # remove potential .gz from FileNames
-    # decompression happens during staging
-    target_filenames <- str_replace_all(targets\$t3\$FileName, ".gz\$", "")
-    
-    raw <- oligo::read.celfiles(target_filenames, sampleNames=targets\$t3\$SampleName)
-
-    save(raw, file="raw.Rdata")
-    print("Saved to 'raw.Rdata'")
-    """
-    else
-    """
-    echo "No read in for this file extension is known"
+  
+    # replace with .rmd files in channels
+    file.copy(file.path(codebase_dir,"load_raw.rmd"), ".", overwrite=TRUE)
+ 
+    rmarkdown::render("load_raw.rmd",
+                      "html_document", 
+                      output_file="load_raw",
+                      output_dir=getwd())
     """
 }
 
-process DETERMINE_PLATFORM_DESIGN {
-  conda = "${projectDir}/envs/minimal.yml"
-
-  input:
-    path(runsheet)
-  
-  output:
-    path("platform_design.txt")
-  
-  script:
-    """
-    #! /usr/bin/env Rscript
-    library(oligo)
-    
-    celFiles <- Sys.glob(file.path("raw_files","*.CEL"))
-    print(celFiles)
-    raw <- oligo::read.celfiles(celFiles)
-
-    save(raw, file="raw.Rdata")
-    print("Saved to 'raw.Rdata'")
-    """
-}
 
 process IMPORT_PROBE {
   conda = "${projectDir}/envs/minimal.yml"

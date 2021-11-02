@@ -86,6 +86,6 @@ raw_data <- oligo::read.celfiles(targets$raw_files)
 
 ## Status
 ```{r status, echo=FALSE}
-sprintf("Raw files successfully loaded as class %s. Saving 'raw' to Rdata file", class(raw_data))
+sprintf("Raw files successfully loaded as class %s. Saving 'raw_data' to Rdata file", class(raw_data))
 save(raw_data, file="raw_data.Rdata")
 ```

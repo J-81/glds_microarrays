@@ -41,7 +41,7 @@ channel_1_txt_flag,
 channel_2_txt_flag, 
 channel_1_gpr_flag, 
 channel_2_gpr_flag, 
-channel_1_cel_flag, 
+channel_1_cel_flag 
 )
 
 if (supported_flags != 1) { 

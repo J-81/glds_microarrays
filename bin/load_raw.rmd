@@ -8,7 +8,6 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE,
 		      fig.width = 12, 
 		      fig.height = 8,
-		      root.dir = getwd(),
 		      error = TRUE # since endpoints include saved data, this is safe as requisite data not being saved will block workflow progression.  This allows a debugger to see the erroring Rmarkdown report.
 		      )
 supported = FALSE

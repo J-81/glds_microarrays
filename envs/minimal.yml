@@ -21,9 +21,6 @@ dependencies:
    - r-tzdb
    - r-dt
    - r-bslib
-     # FOR GLDS-205 runs
-   - bioconductor-org.at.tair.db
-     # END FOR GLDS-205 runs
    - pip
    - pip:
      - git+https://github.com/J-81/Analysis_Staging.git@0.4.0-beta.1

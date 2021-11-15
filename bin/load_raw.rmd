@@ -29,36 +29,35 @@ print(targets$raw_files)
 
 ## Mapping Appropriate Loading Protocol
 ``` {r flag-setting, error=FALSE}
-channel_1_txt_flag <- ((targets$filetype %in% c("TXT","RAW.TXT")) & (targets$channels == 1))
-channel_2_txt_flag <- ((targets$filetype %in% c("TXT","RAW.TXT")) & (targets$channels == 2))
-channel_1_gpr_flag <- ((targets$filetype %in% c("GPR")) & (targets$channels == 1))
-channel_2_gpr_flag <- ((targets$filetype %in% c("GPR")) & (targets$channels == 2))
-channel_1_cel_flag <- ((targets$filetype %in% c("CEL")) & (targets$channels == 1)) # note, cel format should always be single channel so the channels check is redudant
+flags <- c("channel_1_txt_flag","channel_2_txt_flag","channel_1_gpr_flag","channel_2_gpr_flag","channel_1_cel_flag")
+flag_state <- data.frame(row.names=flags, criteriaMet=rep(FALSE, times=length(flags)))
+flag_state["channel_1_txt_flag",] <- ((targets$filetype %in% c("TXT","RAW.TXT")) & (targets$channels == 1))
+flag_state["channel_2_txt_flag",] <- ((targets$filetype %in% c("TXT","RAW.TXT")) & (targets$channels == 2))
+flag_state["channel_1_gpr_flag",] <- ((targets$filetype %in% c("GPR")) & (targets$channels == 1))
+flag_state["channel_2_gpr_flag",] <- ((targets$filetype %in% c("GPR")) & (targets$channels == 2))
+flag_state["channel_1_cel_flag",] <- ((targets$filetype %in% c("CEL")) & (targets$channels == 1)) # note, cel format should always be single channel so the channels check is redudant
 
-supported_flags <- sum(
-channel_1_txt_flag, 
-channel_2_txt_flag, 
-channel_1_gpr_flag, 
-channel_2_gpr_flag, 
-channel_1_cel_flag 
-)
+supported_flags <- sum(flag_state[,"criteriaMet"])
+
+print(flag_state)
 ```
 
 ``` {r check-flags}
+print(flag_state)
 if (supported_flags != 1) { 
     stop(sprintf("Error: One and only one flag condition should be met. Flag conditions met: %d,  see flag conditions in this markdown file", supported_flags))
 }
 ```
 
 ## Raw File Loading
-```{r raw-file-loading-1-channel-txt, eval=(channel_1_txt_flag), include=(channel_1_txt_flag)}
+```{r raw-file-loading-1-channel-txt, eval=(flag_state["channel_1_txt_flag",]), include=(flag_state["channel_1_txt_flag",])}
 raw_data <- read.maimages(basename(targets$raw_files), 
 		          source="agilent", 
 		          green.only=TRUE, 
 		     	  names = targets$t1$SampleName)
 ```
 
-```{r raw-file-loading-1-channel-gpr, eval=(channel_1_gpr_flag), include=(channel_1_gpr_flag)}
+```{r raw-file-loading-1-channel-gpr, eval=(flag_state["channel_1_gpr_flag",]), include=(flag_state["channel_1_gpr_flag",])}
 raw_data <- read.maimages(basename(targets$raw_files), 
 		          source="genepix", 
 		          wt.fun=wtflags(weight=0,cutoff=-50), 
@@ -66,21 +65,22 @@ raw_data <- read.maimages(basename(targets$raw_files),
 		          names = targets$t1$SampleName)
 ```
 
-```{r raw-file-loading-2-channel-gpr, eval=(channel_2_gpr_flag), include=(channel_2_gpr_flag)}
+```{r raw-file-loading-2-channel-gpr, eval=(flag_state["channel_2_gpr_flag",]), include=(flag_state["channel_2_gpr_flag",])}
 files <- unique(basename(targets$raw_files))
 raw_data <- read.maimages(files,
 		          source="genepix", 
 		          wt.fun=wtflags(weight=0,cutoff=-50))
 ```
 
-```{r raw-file-loading-2-channel-txt, eval=(channel_2_txt_flag), include=(channel_2_txt_flag)}
+```{r raw-file-loading-2-channel-txt, eval=(flag_state["channel_2_txt_flag",]), include=(flag_state["channel_2_txt_flag",])}
 files <- unique(basename(targets$raw_files))
 raw_data <- read.maimages(files, 
 		          source="agilent")
 ```
 
-```{r raw-file-loading-1-channel-cel, eval=(channel_1_cel_flag), include=(channel_1_cel_flag)}
-raw_data <- oligo::read.celfiles(targets$raw_files)
+```{r raw-file-loading-1-channel-cel, eval=(flag_state["channel_1_cel_flag",]), include=(flag_state["channel_1_cel_flag",])}
+raw_data <- oligo::read.celfiles(targets$raw_files,
+                                 sampleNames = targets$t1$SampleName)
 ```
 
 ## Status

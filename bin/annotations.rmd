@@ -114,11 +114,101 @@ string_cols <- string_cols[!duplicated(string_cols$ENTREZID),]
 annotation <- dplyr::left_join(annotation,string_cols,by="ENTREZID")
 ```
 
-```{r list--box-plots, eval=(any(flag_state[c("elist_flag","malist_flag"),])), include=(any(flag_state[c("elist_flag","malist_flag"),]))}
-longest_sample_name_length <- max(nchar(rownames(normalized$targets))) * 0.5
-bottom_margin <- min(35, longest_sample_name_length)
-par(mar=c(bottom_margin,2,1,1))
-boxplot(data.frame(log2(as.matrix(normalized))),main="Normalized Data Log2 Intensities", las=2,outline=FALSE)
+```{r malist--box-plots, eval=(flag_state["malist_flag",]),  include=(flag_state["malist_flag",])}
+normalized.summarized <- normalized
+normalized.summarized$genes<-annotation.subset
+cat("\n Initial feature count: ",dim(normalized.summarized$genes),"\n")
+
+### Filter out Control Probes
+cat("\n normalized columns",colnames(normalized.summarized$genes))
+filter <- which(!(normalized.summarized$genes$ID %in% c("DarkCorner","GE_BrightCorner","NegativeControl")))
+normalized.summarized<- normalized.summarized[filter,]
+annotation.subset <- annotation.subset[filter,]
+cat("\n Features after control probes removed: ",dim(normalized.summarized$genes),"\n")
+
+expression_df <- as.data.frame(normalized.summarized$M)
+ann.dbi <- organism_table$annotations[str_replace(tolower(organism_table$species), " ", "_") == targets$organism] # Organism specific gene annotation database
+ann.dbi=as.character(ann.dbi)
+library(ann.dbi, character.only=TRUE)
+### Map Annotations from Primary Keytype
+annotation<-data.frame(ID=normalized$genes$ID) #assumes Array ID is primary annotation
+# annotation<-data.frame(ID=raw$genes$GeneName)
+# annotation<-data.frame(ID=raw$genes$Name) #assumes Array ID is primary annotation
+annotation$ID <- sub("\\.\\d+", "", annotation$ID) #remove any version suffixes from IDs
+
+keytype <- NULL
+testout <- NULL
+testkeys <- annotation$ID[100:200]
+cat("\nTesting keys against available keytypes.\n")
+for(annkey in columns(eval(parse(text = ann.dbi)))){
+  try(testout<-mapIds(eval(parse(text = ann.dbi),env=.GlobalEnv),keys = testkeys,keytype = annkey, column = "ENTREZID",multiVals = "first"))
+  if(length(testout)>10){
+    keytype<-annkey
+    cat("\nKeytype identified: ",keytype,"\n")
+    break;
+  }
+}
+
+### Map assay database annotations
+annotation <- data.frame(REFSEQ=mapIds(eval(parse(text = database),env=.GlobalEnv),keys = keys,keytype = keytype, column = "REFSEQ",multiVals = "first"))
+
+annotation$ENSEMBL<-mapIds(eval(parse(text = database),env=.GlobalEnv),keys = keys,keytype = keytype, column = "ENSEMBL",multiVals = "first")
+annotation$SYMBOL<-mapIds(eval(parse(text = database),env=.GlobalEnv),keys = keys,keytype = keytype, column = "SYMBOL",multiVals = "first")
+annotation$GENENAME<-mapIds(eval(parse(text = database),env=.GlobalEnv),keys = keys,keytype = keytype, column = "GENENAME",multiVals = "first")
+annotation$ENTREZID<-mapIds(eval(parse(text = database),env=.GlobalEnv),keys = keys,keytype = keytype, column = "ENTREZID",multiVals = "first")
+annotation$TAIR<-mapIds(eval(parse(text = database),env=.GlobalEnv),keys = keys,keytype = keytype, column = "TAIR",multiVals = "first")
+annotation$GOSLIM_IDS<-mapIds(eval(parse(text = database),env=.GlobalEnv),keys = keys,keytype = keytype, column = "GO",multiVals = "first")
+
+
+### Map STRING annotations
+string_db <- STRINGdb::STRINGdb$new( version="11", species=organism_table$taxon[str_replace(tolower(organism_table$species), " ", "_") == targets$organism] ,score_threshold=0)
+string_map<-string_db$map(annotation,"ENTREZID",removeUnmappedRows = TRUE, takeFirst = TRUE)
+string_cols <-string_map[,c("ENTREZID","STRING_id")]
+string_cols <- string_cols[!duplicated(string_cols$ENTREZID),]
+annotation <- dplyr::left_join(annotation,string_cols,by="ENTREZID")
+```
+
+```{r elist--box-plots, eval=(flag_state["elist_flag",]),  include=(flag_state["elist_flag",])}
+expression_df <- cbind(normalized$genes$ProbeUID,normalized$E)
+ann.dbi <- organism_table$annotations[str_replace(tolower(organism_table$species), " ", "_") == targets$organism] # Organism specific gene annotation database
+ann.dbi=as.character(ann.dbi)
+library(ann.dbi, character.only=TRUE)
+database<-ann.dbi
+cat("\nKey headers: ",colnames(normalized$genes),"\n")
+keys<-normalized$genes$SystematicName
+keys <- sub("\\.\\d+", "", keys) #remove any version suffixes from IDs
+keys <- toupper(keys)
+
+keytype <- NULL
+testout <- NULL
+testkeys <- keys[100:200]
+cat("\nTesting keys against available keytypes.\n")
+for(annkey in columns(eval(parse(text = ann.dbi)))){
+  try(testout<-mapIds(eval(parse(text = ann.dbi),env=.GlobalEnv),keys = testkeys,keytype = annkey, column = "ENTREZID",multiVals = "first"))
+  if(length(testout)>10){
+    keytype<-annkey
+    cat("\nKeytype identified: ",keytype,"\n")
+    break;
+  }
+}
+
+### Map assay database annotations
+annotation <- data.frame(REFSEQ=mapIds(eval(parse(text = database),env=.GlobalEnv),keys = keys,keytype = keytype, column = "REFSEQ",multiVals = "first"))
+
+annotation$ENSEMBL<-mapIds(eval(parse(text = database),env=.GlobalEnv),keys = keys,keytype = keytype, column = "ENSEMBL",multiVals = "first")
+annotation$SYMBOL<-mapIds(eval(parse(text = database),env=.GlobalEnv),keys = keys,keytype = keytype, column = "SYMBOL",multiVals = "first")
+annotation$GENENAME<-mapIds(eval(parse(text = database),env=.GlobalEnv),keys = keys,keytype = keytype, column = "GENENAME",multiVals = "first")
+annotation$ENTREZID<-mapIds(eval(parse(text = database),env=.GlobalEnv),keys = keys,keytype = keytype, column = "ENTREZID",multiVals = "first")
+annotation$TAIR<-mapIds(eval(parse(text = database),env=.GlobalEnv),keys = keys,keytype = keytype, column = "TAIR",multiVals = "first")
+annotation$GOSLIM_IDS<-mapIds(eval(parse(text = database),env=.GlobalEnv),keys = keys,keytype = keytype, column = "GO",multiVals = "first")
+
+
+### Map STRING annotations
+string_db <- STRINGdb::STRINGdb$new( version="11", species=organism_table$taxon[str_replace(tolower(organism_table$species), " ", "_") == targets$organism] ,score_threshold=0)
+string_map<-string_db$map(annotation,"ENTREZID",removeUnmappedRows = TRUE, takeFirst = TRUE)
+string_cols <-string_map[,c("ENTREZID","STRING_id")]
+string_cols <- string_cols[!duplicated(string_cols$ENTREZID),]
+annotation <- dplyr::left_join(annotation,string_cols,by="ENTREZID")
 ```
 
 ## Export files

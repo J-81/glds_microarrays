@@ -63,7 +63,165 @@ if (supported_flags != 1) {
 ```
 
 ## Annotation Mapping Protocol
-```{r featureset--box-plots, eval=(flag_state["expressionset_flag",]),  include=(flag_state["expressionset_flag",])}
+```{r expressionset--dge, eval=(flag_state["expressionset_flag",]),  include=(flag_state["expressionset_flag",])}
+### Gene level estimation by maximum interquartile range
+cat("\nPerforming gene level estimation by max interquartile range")
+normalized.filt <- normalized
+### Basic linear model fit
+cat("\nConstructing linear model\n")
+library(limma)
+
+
+group__ <- factor(targets$t3$Group, levels = unique(targets$t3$Group))
+design <- model.matrix(~ 0 + group__)
+colnames(design)<-gsub("group__","",colnames(design)) #remove design name formatting
+fit <- lmFit(normalized.filt, design)
+
+if (is.fullrank(design) == FALSE){
+  cat("The following groups are non estimable:",nonEstimable(design))
+}
+
+fit.groups <- colnames(fit$design)[which(fit$assign == 1)]
+fit.index <-  which(levels(group__) %in% fit.groups)
+fit.group.names <- unique(targets$t2$Group)
+
+
+
+### Create Contrast Model
+cat("\nCreating contrast model\n")
+combos<-combn(fit.groups,2) # generate matrix of pairwise group combinations for comparison
+combos.names<-combn(fit.group.names,2)
+contrasts<-c(paste(combos[1,],combos[2,],sep = "-"),paste(combos[2,],combos[1,],sep = "-")) # format combinations for limma:makeContrasts
+contrast.names <-c(paste(combos.names[1,],combos.names[2,],sep = "v"),paste(combos.names[2,],combos.names[1,],sep = "v")) # format combinations for output table file names
+
+
+cont.matrix <- makeContrasts(contrasts = contrasts,levels=design)
+
+contrast.fit <- contrasts.fit(fit, cont.matrix)
+contrast.fit <- eBayes(contrast.fit)
+results<-decideTests(contrast.fit, method = "separate", adjust.method = "BH", p.value = 0.05, lfc = 0.5) # FDR .05
+    
+### Construct DGE Output Tables
+cat("Building DGE tables\n")
+output_table <- fit$genes
+reduced_output_table <- fit$genes
+cat("\nDim of fit$genes: ",dim(output_table),"\n")
+expr <- as.data.frame(normalized.filt@assayData$exprs)
+cat("\nDim of expr: ",dim(expr),"\n")
+cat("\nDim of normalized.filt.exprs: ",dim(normalized.filt@assayData$exprs),"\n")
+
+output_table <- cbind(output_table,expr)
+reduced_output_table <- cbind(reduced_output_table,expr)
+
+# add all sample mean column
+output_table$All.mean <- fit$Amean
+reduced_output_table$All.mean <- fit$Amean
+# add all sample stdev column
+output_table$All.stdev <- contrast.fit$s2.post
+reduced_output_table$All.stdev <- contrast.fit$s2.post
+# add F statistic p-value (similar to ANOVA p-value) column
+output_table$F.p.value <- contrast.fit$F.p.value
+reduced_output_table$F.p.value <- contrast.fit$F.p.value
+uu<- unique(targets$t2$Group)
+# Add group mean values
+group_means<-fit$coefficients
+colnames(group_means)<-paste0("Group.Mean_",uu)
+output_table<-cbind(output_table,group_means)
+reduced_output_table<-cbind(reduced_output_table,group_means)
+rm(group_means)
+# add group stdev columns
+group_stdev<-fit$stdev.unscaled * fit$coefficients
+colnames(group_stdev)<-paste0("Group.Stdev_",uu)
+output_table<-cbind(output_table,group_stdev)
+reduced_output_table<-cbind(reduced_output_table,group_stdev)
+rm(group_stdev)
+# iterate through contrasts
+for (i in 1:length(contrasts)){
+  top <- topTable(contrast.fit, coef = i, number = Inf, genelist = contrast.fit$genes$ID, adjust.method = "BH", sort.by = "none")
+  table <- top[,c(1,4,5)] # Pull columns for Log2fc, P.value, Adj.p.value
+  colnames(table)<- c("Log2fc","P.value","Adj.p.value")
+  table.reduced <- table
+  table$Updown <- sign(top$logFC)
+  table$Sig.1 <- top$adj.P.Val<=0.1
+  table$Sig.05 <- top$adj.P.Val<=0.05
+  table$Log2_P.value <- log2(top$P.Value) # For volcano plot
+  table$Log2_Adj.p.value <- log2(top$adj.P.Val) # For volcano plot
+  colnames(table.reduced)<-paste(colnames(table.reduced),contrast.names[i],sep = "_")
+  colnames(table)<-paste(colnames(table),contrast.names[i],sep = "_")
+  output_table<-cbind(output_table,table)
+  reduced_output_table<-cbind(reduced_output_table,table.reduced)
+}
+```
+
+```{r malist--dge, eval=(flag_state["malist_flag",]),  include=(flag_state["malist_flag",])}
+library(statmod)
+
+if (targets$design == "Replicate Array"){
+    cat("\nReplicate Array Design Detected\n")
+    uu<-uniqueTargets(targets$t2)
+    uuu<-uniqueTargets(targets$t3)
+    fff <- factor(targets$t3$Cy3, levels=uuu)
+    fit <- lmFit(MA.summarized, ref=uuu[1])
+    contrasts<-c(paste(uuu[1],uuu[2],sep = "-"),paste(uuu[2],uuu[1],sep = "-"))
+    fit <- eBayes(fit)
+    contrast.names<-c(paste(uu[1],uu[2],sep = "v"),paste(uu[2],uu[1],sep = "v"))
+    results<-decideTests(fit, method = "separate", adjust.method = "BH", p.value = 0.05, lfc = 0.5)
+    colnames(results)<-contrast.names[2]
+    cat("\nContrast Names: ",contrasts,"\n")
+}
+
+if (targets$design == "Common Reference"){
+
+    uu<-unique(targets2[,2])
+    uuu1<-unique(targets3[,2])
+    uuu2<-unique(targets3[,3]) #confirm reference column
+    design <- modelMatrix(targets3, ref = uuu2)
+    fit <- lmFit(MA.summarized, design)
+    
+    f <- factor(targets3[,2], levels=unique(uuu1)) #confirm non reference column
+    
+    # Create Contrast Model
+    combos<-combn(levels(f),2) # generate matrix of pairwise group combinations for comparison
+    ff <- factor(targets2[,2], levels=unique(uu))
+    combos.names<-combn(levels(ff),2)
+    contrasts<-c(paste(combos[1,],combos[2,],sep = "-"),paste(combos[2,],combos[1,],sep = "-")) # format combinations for limma:makeContrasts
+    contrast.names <-c(paste(combos.names[1,],combos.names[2,],sep = "v"),paste(combos.names[2,],combos.names[1,],sep = "v")) # format combinations for output table file names
+    
+    
+    cont.matrix <- makeContrasts(contrasts = contrasts,levels=design)
+    contrast.fit <- contrasts.fit(fit, cont.matrix)
+    contrast.fit <- eBayes(contrast.fit)
+    results<-decideTests(contrast.fit, method = "separate", adjust.method = "BH", p.value = 0.05, lfc = 0.5) # FDR .05
+}
+  
+if (targets$design == "Separate Channels"){
+    targets$t2 <- targetsA2C(targets$t2, channel.codes = c(1,2), channel.columns = list(Target=c("Cy3","Cy5")),grep = FALSE)
+    targets$t3 <- targetsA2C(targets$t3, channel.codes = c(1,2), channel.columns = list(Target=c("Cy3","Cy5")),grep = FALSE)
+    
+    uuu <- unique(targets$t3$Target)
+    uu <- unique(targets$t2$Target)
+    fff <- factor(targets$t3$Target, levels=uuu)
+    design <- model.matrix(~0+fff)
+    colnames(design) <- uuu
+    corfit <- intraspotCorrelation(MA.summarized, design)
+    fit <- lmscFit(MA.summarized, design, correlation=corfit$consensus)
+    
+    # Create Contrast Model
+    combos<-combn(levels(fff),2) # generate matrix of pairwise group combinations for comparison
+    uu <- unique(targets$t2$Target)
+    ff <- factor(targets$t2$Target, levels=uu)
+    combos.names<-combn(levels(ff),2)
+    contrasts<-c(paste(combos[1,],combos[2,],sep = "-"),paste(combos[2,],combos[1,],sep = "-")) # format combinations for limma:makeContrasts
+    contrast.names <-c(paste(combos.names[1,],combos.names[2,],sep = "v"),paste(combos.names[2,],combos.names[1,],sep = "v")) # format combinations for output table file names
+    cont.matrix <- makeContrasts(contrasts = contrasts,levels=design)
+    contrast.fit <- contrasts.fit(fit, cont.matrix)
+    contrast.fit <- eBayes(contrast.fit, trend = TRUE)
+    results<-decideTests(contrast.fit, method = "separate", adjust.method = "BH", p.value = 0.05, lfc = 0.5)
+    
+}
+```
+
+```{r elist--dge, eval=(flag_state["elist_flag",]),  include=(flag_state["elist_flag",])}
 ### Gene level estimation by maximum interquartile range
 cat("\nPerforming gene level estimation by max interquartile range")
 normalized.filt <- normalized

@@ -175,7 +175,7 @@ process IMPORT_PROBE {
   script:
     """
     #! /usr/bin/env Rscript
-    #4a
+    #12a
 
     codebase_dir <- file.path("${ workflow.projectDir }","bin")
 
@@ -208,7 +208,7 @@ process DGE {
   script:
     """
     #! /usr/bin/env Rscript
-    #4b
+    #6b
 
     codebase_dir <- file.path("${ workflow.projectDir }","bin")
     

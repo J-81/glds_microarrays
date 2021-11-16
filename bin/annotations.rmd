@@ -64,11 +64,8 @@ if (supported_flags != 1) {
   DT::datatable(targets$t1)
 ```
 
-## Annotation Mapping Protocol
-```{r expressionset--box-plots, eval=(flag_state["expressionset_flag",]),  include=(flag_state["expressionset_flag",])}
-expression_df <- data.frame(Biobase::exprs(normalized))
-keys<-rownames(expression_df)
-
+## Annotation Database and Key Determination
+```{r expressionset--database_and_keys, eval=(flag_state["expressionset_flag",]),  include=(flag_state["expressionset_flag",])}
 ### Import Probe Data
 if (length(targets$probe >= 1)){
   print("Branch: 1")
@@ -94,39 +91,16 @@ if (length(targets$probe >= 1)){
   }
   library(database, character.only=TRUE)
 }
-
 database <- eval(parse( text = database )) # convert from string denoting the database by character to the actual object
+
+expression_df <- data.frame(Biobase::exprs(normalized))
+keys<-rownames(expression_df)
 print(keys[10:20])
-### Map assay database annotations
-annotation <- data.frame(REFSEQ=as.character(mapIds(database,keys = keys,keytype = keytype, column = "REFSEQ",multiVals = "first")))
-
-annotation$ENSEMBL<-as.character(mapIds(database,keys = keys,keytype = keytype, column = "ENSEMBL",multiVals = "first"))
-annotation$SYMBOL<-as.character(mapIds(database,keys = keys,keytype = keytype, column = "SYMBOL",multiVals = "first"))
-annotation$GENENAME<-as.character(mapIds(database,keys = keys,keytype = keytype, column = "GENENAME",multiVals = "first"))
-annotation$ENTREZID<-as.character(mapIds(database,keys = keys,keytype = keytype, column = "ENTREZID",multiVals = "first"))
-annotation$TAIR<-as.character(mapIds(database,keys = keys,keytype = keytype, column = "TAIR",multiVals = "first"))
-annotation$GOSLIM_IDS<-as.character(mapIds(database,keys = keys,keytype = keytype, column = "GO",multiVals = "first"))
-
-
-### Map STRING annotations
-string_db <- STRINGdb::STRINGdb$new( version="11", species=organism_table$taxon[str_replace(tolower(organism_table$species), " ", "_") == targets$organism] ,score_threshold=0)
-string_map<-string_db$map(annotation,"ENTREZID",removeUnmappedRows = TRUE, takeFirst = TRUE)
-string_cols <-string_map[,c("ENTREZID","STRING_id")]
-string_cols <- string_cols[!duplicated(string_cols$ENTREZID),]
-annotation <- dplyr::left_join(annotation,string_cols,by="ENTREZID")
-
-### specific formatting
-fData(normalized)<-annotation
+annotation<-data.frame(ID=keys) #assumes Array ID is primary annotation
 ```
 
-```{r malist--box-plots, eval=(flag_state["malist_flag",]),  include=(flag_state["malist_flag",])}
-normalized.summarized <- normalized
-# annotation<-data.frame(ID=normalized$genes$ID) #assumes Array ID is primary annotation
-annotation<-data.frame(ID=normalized$genes$Name) #assumes Array ID is primary annotation
-annotation$ID <- gsub("\\.\\d+", "", annotation$ID) #remove any version suffixes from IDs, this causes issues when attempting to use these IDs for annotation mapping
-normalized.summarized$genes<-annotation.subset
-cat("\n Initial feature count: ",dim(normalized.summarized$genes),"\n")
 
+```{r agilent--database_key_determination,  eval=(any(flag_state[c("elist_flag","malist_flag"),])), include=(any(flag_state[c("elist_flag","malist_flag"),]))}
 ann.dbi <- organism_table$annotations[str_replace(tolower(organism_table$species), " ", "_") == targets$organism] # Organism specific gene annotation database
 ann.dbi=as.character(ann.dbi)
 if(!require(ann.dbi, character.only=TRUE)) {
@@ -134,13 +108,24 @@ if(!require(ann.dbi, character.only=TRUE)) {
   library(ann.dbi, character.only=TRUE)
 }
 library(ann.dbi, character.only=TRUE)
-database <- eval(parse( text = ann.dbi ))
+database <- eval(parse( text = ann.dbi )) # convert from string denoting the database by character to the actual object
 
 ### Map Annotations from Primary Keytype
+if ( !is.null(normalized$genes$Name) ) {
+	annotation<-data.frame(ID=normalized$genes$Name) #assumes Array ID is primary annotation, using column name for malist
+} else {
+	annotation<-data.frame(ID=normalized$genes$SystematicName) #assumes Array ID is primary annotation, using column name for elist
+}
+annotation$ID <- gsub("\\.\\d+", "", annotation$ID) #remove any version suffixes from IDs, this causes issues when attempting to use these IDs for annotation mapping
+cat("\n Initial feature count: ",length(annotation$ID),"\n")
+keys <- annotation$ID
+keys <- toupper(keys) # required as keys in database are upper
 
+
+### Test for appropriate keytype
 keytype <- NULL
 testout <- NULL
-testkeys <- annotation$ID[100:200]
+testkeys <- keys[100:200]
 print(head(testkeys))
 cat("\nTesting keys against available keytypes.\n")
 db_columns <- columns(database)
@@ -161,8 +146,20 @@ if (length(valid_keys) == 1){
 	stop("Unsure how to proceed with this kind of mapping")
 }
 
-keys <- annotation$ID
+annotation<-data.frame(ID=keys) #assumes Array ID is primary annotation
+print(keytype)
+```
 
+```{r elist--annotation_and_expression_df_setup, eval=(flag_state["elist_flag",]),  include=(flag_state["elist_flag",])}
+expression_df <- cbind(normalized$genes$ProbeUID,normalized$E)
+```
+
+```{r malist--annotation_and_expression_df_setup, eval=(flag_state["malist_flag",]),  include=(flag_state["malist_flag",])}
+expression_df <- cbind(annotation$ID, normalized$M)
+```
+
+## Add annotations
+```{r general--add_annotations, eval=TRUE,  include=TRUE}
 ### Map assay database annotations
 annotation$REFSEQ<-as.character(mapIds(database,keys = keys,keytype = keytype, column = "REFSEQ",multiVals = "first"))
 annotation$ENSEMBL<-as.character(mapIds(database,keys = keys,keytype = keytype, column = "ENSEMBL",multiVals = "first"))
@@ -179,77 +176,25 @@ string_map<-string_db$map(annotation,"ENTREZID",removeUnmappedRows = TRUE, takeF
 string_cols <-string_map[,c("ENTREZID","STRING_id")]
 string_cols <- string_cols[!duplicated(string_cols$ENTREZID),]
 annotation <- dplyr::left_join(annotation,string_cols,by="ENTREZID")
-
-### Filter out Control Probes
-cat("\n normalized columns",colnames(normalized.summarized$genes))
-filter <- which(!(normalized.summarized$genes$ID %in% c("DarkCorner","GE_BrightCorner","NegativeControl")))
-normalized.summarized<- normalized.summarized[filter,]
-annotation.subset <- annotation[filter,]
-cat("\n Features after control probes removed: ",dim(normalized.summarized$genes),"\n")
-
-expression_df <- as.data.frame(normalized.summarized$M)
-
-### Specific export
-annotation <- annotation.subset
-normalized$annotation <- annotation
 ```
 
-```{r elist--box-plots, eval=(flag_state["elist_flag",]),  include=(flag_state["elist_flag",])}
-ann.dbi <- organism_table$annotations[str_replace(tolower(organism_table$species), " ", "_") == targets$organism] # Organism specific gene annotation database
-ann.dbi=as.character(ann.dbi)
-if(!require(ann.dbi, character.only=TRUE)) {
-  BiocManager::install(ann.dbi, ask = FALSE)
-  library(ann.dbi, character.only=TRUE)
-}
 
-database <- eval(parse( text = ann.dbi )) # convert from string denoting the database by character to the actual object
-cat("\nKey headers: ",colnames(normalized$genes),"\n")
-keys<-normalized$genes$SystematicName
-keys <- sub("\\.\\d+", "", keys) #remove any version suffixes from IDs
-keys <- toupper(keys)
+## Set up for file export
+```{r expressionset--format-normalized-annotated, eval=(flag_state["expressionset_flag",]),  include=(flag_state["expressionset_flag",])}
+### specific formatting
+fData(normalized)<-annotation # assign featureData (an attribute of expressionSet objects
+```
 
-keytype <- NULL
-testout <- NULL
-testkeys <- keys[100:200]
-cat("\nTesting keys against available keytypes.\n")
-db_columns <- columns(database)
-mapping_df <- data.frame(row.names=db_columns, mappedIDs = rep(0, times=length(db_columns)))
-for (annkey in rownames(mapping_df)) {
-	mapped_for_this_key <-try(mapIds(database, keys = testkeys, keytype = annkey, column = "ENTREZID",multiVals = "first")) # try is used here since mapping to nothing results in an error
-	mapping_df[annkey, ] = length(mapped_for_this_key)
-}
-print(mapping_df)
-valid_keys <- rownames(which(mapping_df == max(mapping_df), arr.ind=T))
-
-if (length(valid_keys) == 1){
-	keytype = valid_keys
-} else if ( (length(valid_keys) == 2) && ("ACCNUM" %in% valid_keys) ) {
-	keytype = "ACCNUM" # this was observed to be a possible case when both ACCNUM (from genbank) and REFSEQ (forked from genbank) exist in the database
-} else {
-	print(valid_keys)
-	stop("Unsure how to proceed with this kind of mapping")
-}
-
-### Map assay database annotations
-annotation <- data.frame(REFSEQ=as.character(mapIds(database,keys = keys,keytype = keytype, column = "REFSEQ",multiVals = "first")))
-annotation$ENSEMBL<-as.character(mapIds(database,keys = keys,keytype = keytype, column = "ENSEMBL",multiVals = "first"))
-annotation$SYMBOL<-as.character(mapIds(database,keys = keys,keytype = keytype, column = "SYMBOL",multiVals = "first"))
-annotation$GENENAME<-as.character(mapIds(database,keys = keys,keytype = keytype, column = "GENENAME",multiVals = "first"))
-annotation$ENTREZID<-as.character(mapIds(database,keys = keys,keytype = keytype, column = "ENTREZID",multiVals = "first"))
-annotation$TAIR<-as.character(mapIds(database,keys = keys,keytype = keytype, column = "TAIR",multiVals = "first"))
-annotation$GOSLIM_IDS<-as.character(mapIds(database,keys = keys,keytype = keytype, column = "GO",multiVals = "first"))
-
-
-### Map STRING annotations
-string_db <- STRINGdb::STRINGdb$new( version="11", species=organism_table$taxon[str_replace(tolower(organism_table$species), " ", "_") == targets$organism] ,score_threshold=0)
-string_map<-string_db$map(annotation,"ENTREZID",removeUnmappedRows = TRUE, takeFirst = TRUE)
-string_cols <-string_map[,c("ENTREZID","STRING_id")]
-string_cols <- string_cols[!duplicated(string_cols$ENTREZID),]
-annotation <- dplyr::left_join(annotation,string_cols,by="ENTREZID")
+```{r agilent--format-normalized-annotated,  eval=(any(flag_state[c("elist_flag","malist_flag"),])), include=(any(flag_state[c("elist_flag","malist_flag"),]))}
+### Filter out Control Probes
+cat("\n normalized columns",colnames(normalized$genes))
+filter <- which(!(annotation$ID %in% c("DARKCORNER","GE_BRIGHTCORNER","NEGATIVECONTROL")))
+normalized <- normalized[filter,]
+annotation <- annotation[filter,]
+expression_df <- expression_df[filter,]
+cat("\n Features after control probes removed: ",dim(normalized$genes),"\n")
 
 ### Specific export
-expression_df <- cbind(normalized$genes$ProbeUID,normalized$E)
-annotation <- annotation.subset
 normalized$annotation <- annotation
 ```
 

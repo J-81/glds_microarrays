@@ -205,7 +205,9 @@ cat("\nGenerating normalized-annotated.txt file\n")
 expression_df <- cbind(annotation,expression_df)
 write.table(expression_df,"normalized-annotated.txt",quote=FALSE, append = FALSE, row.names = FALSE, sep = "\t")
 DT::datatable(head(expression_df, n=30))
-write.table(annotation,"probe_annotations.txt",quote=FALSE, append = FALSE, row.names = FALSE, sep = "\t")
+
+cat(sprintf("# Annotated with: %s. Using %s as the match key\n", database$packageName, keytype), file="probe_annotations.txt")
+write.table(annotation,"probe_annotations.txt",quote=FALSE, append = TRUE, row.names = FALSE, sep = "\t")
 DT::datatable(head(annotation, n=30))
 
 ### Annotate the expression set object and save as a file

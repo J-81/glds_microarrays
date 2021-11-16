@@ -72,12 +72,12 @@ workflow {
     LOAD_RUNSHEET( STAGING.out.runsheet, params.gldsAccession, ch_meta )
 
     READ_RAW( ch_raw_files, LOAD_RUNSHEET.out )
-    NORMALIZE( READ_RAW.out, LOAD_RUNSHEET.out )
-    IMPORT_PROBE( READ_RAW.out, LOAD_RUNSHEET.out, NORMALIZE.out.rdata )
+    NORMALIZE( READ_RAW.out.rdata, LOAD_RUNSHEET.out )
+    IMPORT_PROBE( READ_RAW.out.rdata, LOAD_RUNSHEET.out, NORMALIZE.out.rdata )
 
     DGE( IMPORT_PROBE.out.annotated_rdata,  LOAD_RUNSHEET.out )
 
-    QA_RAW( READ_RAW.out, LOAD_RUNSHEET.out )
+    QA_RAW( READ_RAW.out.rdata, LOAD_RUNSHEET.out )
     QA_NORMALIZED( NORMALIZE.out.rdata, LOAD_RUNSHEET.out )
 
 }

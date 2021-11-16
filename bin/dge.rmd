@@ -15,12 +15,13 @@ knitr::opts_chunk$set(echo = TRUE,
 library(limma)
 library(oligo)
 library(Biobase)
-keytype<-"PROBEID"
 
 # load required objects from rData files
 organism_table <- read.csv(file = file.path(codebase_dir,"organisms.csv"), header = TRUE, stringsAsFactors = FALSE)
 load("normalized-annotated.rda")
 load("runsheet.RData")# named 'targets'
+# realias
+#normalized <- normalized_annotated
 
 # set up common variables
 count <- dim(targets$t1)[1]
@@ -64,6 +65,8 @@ if (supported_flags != 1) {
 
 ## Annotation Mapping Protocol
 ```{r expressionset--dge, eval=(flag_state["expressionset_flag",]),  include=(flag_state["expressionset_flag",])}
+keytype="PROBEID"
+
 ### Gene level estimation by maximum interquartile range
 cat("\nPerforming gene level estimation by max interquartile range")
 normalized.filt <- normalized
@@ -85,8 +88,6 @@ fit.groups <- colnames(fit$design)[which(fit$assign == 1)]
 fit.index <-  which(levels(group__) %in% fit.groups)
 fit.group.names <- unique(targets$t2$Group)
 
-
-
 ### Create Contrast Model
 cat("\nCreating contrast model\n")
 combos<-combn(fit.groups,2) # generate matrix of pairwise group combinations for comparison
@@ -106,9 +107,9 @@ cat("Building DGE tables\n")
 output_table <- fit$genes
 reduced_output_table <- fit$genes
 cat("\nDim of fit$genes: ",dim(output_table),"\n")
-expr <- as.data.frame(normalized.filt@assayData$exprs)
+expr <- data.frame(Biobase::exprs(normalized))
 cat("\nDim of expr: ",dim(expr),"\n")
-cat("\nDim of normalized.filt.exprs: ",dim(normalized.filt@assayData$exprs),"\n")
+cat("\nDim of normalized.filt.exprs: ",dim(expr),"\n")
 
 output_table <- cbind(output_table,expr)
 reduced_output_table <- cbind(reduced_output_table,expr)
@@ -151,17 +152,28 @@ for (i in 1:length(contrasts)){
   output_table<-cbind(output_table,table)
   reduced_output_table<-cbind(reduced_output_table,table.reduced)
 }
+
+# set up contrast.output TODO: refactor with elist
+contrast.output <- contrast.fit$contrasts
+row.names(contrast.output)<-uu
+contrast.order <- order(match(contrasts,colnames(contrast.fit$contrasts)))
+
+colnames(contrast.output)<-contrast.names
 ```
 
 ```{r malist--dge, eval=(flag_state["malist_flag",]),  include=(flag_state["malist_flag",])}
 library(statmod)
+print(targets$design)
+output_table <- normalized$annotation
+reduced_output_table <- normalized$annotation
 
 if (targets$design == "Replicate Array"){
     cat("\nReplicate Array Design Detected\n")
     uu<-uniqueTargets(targets$t2)
     uuu<-uniqueTargets(targets$t3)
     fff <- factor(targets$t3$Cy3, levels=uuu)
-    fit <- lmFit(MA.summarized, ref=uuu[1])
+    #fit <- lmFit(MA.summarized, ref=uuu[1])
+    fit <- lmFit(normalized, ref=uuu[1])
     contrasts<-c(paste(uuu[1],uuu[2],sep = "-"),paste(uuu[2],uuu[1],sep = "-"))
     fit <- eBayes(fit)
     contrast.names<-c(paste(uu[1],uu[2],sep = "v"),paste(uu[2],uu[1],sep = "v"))
@@ -176,7 +188,8 @@ if (targets$design == "Common Reference"){
     uuu1<-unique(targets3[,2])
     uuu2<-unique(targets3[,3]) #confirm reference column
     design <- modelMatrix(targets3, ref = uuu2)
-    fit <- lmFit(MA.summarized, design)
+    #fit <- lmFit(MA.summarized, design)
+    fit <- lmFit(normalized, design)
     
     f <- factor(targets3[,2], levels=unique(uuu1)) #confirm non reference column
     
@@ -203,8 +216,9 @@ if (targets$design == "Separate Channels"){
     fff <- factor(targets$t3$Target, levels=uuu)
     design <- model.matrix(~0+fff)
     colnames(design) <- uuu
-    corfit <- intraspotCorrelation(MA.summarized, design)
-    fit <- lmscFit(MA.summarized, design, correlation=corfit$consensus)
+    #corfit <- intraspotCorrelation(MA.summarized, design)
+    corfit <- intraspotCorrelation(normalized, design)
+    fit <- lmscFit(normalized, design, correlation=corfit$consensus)
     
     # Create Contrast Model
     combos<-combn(levels(fff),2) # generate matrix of pairwise group combinations for comparison
@@ -218,6 +232,15 @@ if (targets$design == "Separate Channels"){
     contrast.fit <- eBayes(contrast.fit, trend = TRUE)
     results<-decideTests(contrast.fit, method = "separate", adjust.method = "BH", p.value = 0.05, lfc = 0.5)
     
+}
+
+if (targets$design == "Replicate Array"){
+  cat("\nReplicate array DGE block 4\n")
+  contrast.output <- contrast.names
+} else {
+  contrast.output <- contrast.fit$contrasts
+  row.names(contrast.output)<-uu
+  colnames(contrast.output)<-contrast.names
 }
 ```
 
@@ -261,12 +284,11 @@ results<-decideTests(contrast.fit, method = "separate", adjust.method = "BH", p.
     
 ### Construct DGE Output Tables
 cat("Building DGE tables\n")
-output_table <- fit$genes
-reduced_output_table <- fit$genes
+output_table <- normalized$annotation
+reduced_output_table <- normalized$annotation
 cat("\nDim of fit$genes: ",dim(output_table),"\n")
-expr <- as.data.frame(normalized.filt@assayData$exprs)
+expr <- as.data.frame(normalized$E)
 cat("\nDim of expr: ",dim(expr),"\n")
-cat("\nDim of normalized.filt.exprs: ",dim(normalized.filt@assayData$exprs),"\n")
 
 output_table <- cbind(output_table,expr)
 reduced_output_table <- cbind(reduced_output_table,expr)
@@ -309,17 +331,22 @@ for (i in 1:length(contrasts)){
   output_table<-cbind(output_table,table)
   reduced_output_table<-cbind(reduced_output_table,table.reduced)
 }
+
+# set up contrast.output TODO: refactor with expressionset
+contrast.output <- contrast.fit$contrasts
+row.names(contrast.output)<-uu
+contrast.order <- order(match(contrasts,colnames(contrast.fit$contrasts)))
+
+colnames(contrast.output)<-contrast.names
 ```
 
 ## Export files
 ```{r export }
 ### Export DGE Output Data Tables
 write.csv(reduced_output_table,"differential_expression.csv", row.names = FALSE)
+DT::datatable(head(reduced_output_table, n=30))
 write.csv(output_table,"visualization_output_table.csv", row.names = FALSE)
-contrast.output <- contrast.fit$contrasts
-row.names(contrast.output)<-uu
-contrast.order <- order(match(contrasts,colnames(contrast.fit$contrasts)))
-
-colnames(contrast.output)<-contrast.names
+DT::datatable(head(output_table, n=30))
 write.csv(contrast.output,"contrasts.csv")
+DT::datatable(head(contrast.output, n=30))
 ```

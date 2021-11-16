@@ -40,7 +40,7 @@ process QA_NORMALIZED {
   
   output:
     path("normalized_qa.html")
-    path("visualization_PCA_table.csv")
+    path("visualization_PCA_table.csv"), optional: true // for two channel processing, sample wise is not generated
   
   script:
     """
@@ -94,7 +94,7 @@ process NORMALIZE {
   conda = "${projectDir}/envs/minimal.yml"
   publishDir "${ params.outputDir }/${ params.gldsAccession }/01-NormalizedData",
     mode: params.publish_dir_mode,
-    pattern: "normalized.txt"
+    pattern: "normalize*.{txt,html}"
 
   input:
     path("raw_data.RData")
@@ -103,10 +103,12 @@ process NORMALIZE {
   output:
     path("normalized.RData"), emit: rdata
     path("normalized.txt")
+    path("normalize.html")
   
   script:
     """
     #! /usr/bin/env Rscript
+    #3
 
     codebase_dir <- file.path("${ workflow.projectDir }","bin")
     # replace with .rmd files in channels
@@ -122,13 +124,17 @@ process NORMALIZE {
 
 process READ_RAW {
   conda = "${projectDir}/envs/minimal.yml"
+  publishDir "${ params.outputDir }/${ params.gldsAccession }/00-RawData",
+    mode: params.publish_dir_mode,
+    pattern: "load_raw.html"
 
   input:
     path(raw_files)
     path(runsheet_RData)
   
   output:
-    path("raw_data.Rdata")
+    path("raw_data.Rdata"), emit: rdata
+    path("load_raw.html")
   
   script:
     """
@@ -164,10 +170,12 @@ process IMPORT_PROBE {
     path("normalized-annotated.txt")
     path("probe_annotations.txt")
     path("normalized-annotated.rda"), emit: annotated_rdata
+    path("annotations.html")
   
   script:
     """
     #! /usr/bin/env Rscript
+    #4a
 
     codebase_dir <- file.path("${ workflow.projectDir }","bin")
 
@@ -195,11 +203,12 @@ process DGE {
    path("contrasts.csv")
    path("visualization_output_table.csv")
    path("differential_expression.csv")  
+   path("dge.html")  
 
   script:
     """
     #! /usr/bin/env Rscript
-    #2
+    #4b
 
     codebase_dir <- file.path("${ workflow.projectDir }","bin")
     

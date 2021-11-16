@@ -173,7 +173,7 @@ annotation$GOSLIM_IDS<-as.character(mapIds(database,keys = keys,keytype = keytyp
 ### Map STRING annotations
 string_db <- STRINGdb::STRINGdb$new( version="11", species=organism_table$taxon[str_replace(tolower(organism_table$species), " ", "_") == targets$organism] ,score_threshold=0)
 string_map<-string_db$map(annotation,"ENTREZID",removeUnmappedRows = TRUE, takeFirst = TRUE)
-string_cols <-string_map[,c("ENTREZID","STRING_id")]
+string_cols <-string_map[,c("ENTREZID","STRING_ID")]
 string_cols <- string_cols[!duplicated(string_cols$ENTREZID),]
 annotation <- dplyr::left_join(annotation,string_cols,by="ENTREZID")
 ```

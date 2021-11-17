@@ -139,7 +139,7 @@ valid_keys <- rownames(which(mapping_df == max(mapping_df), arr.ind=T))
 
 if (length(valid_keys) == 1){
 	keytype = valid_keys
-} else if ( (length(valid_keys) == 2) && ("ACCNUM" %in% valid_keys) ) {
+} else if ( (length(valid_keys) > 1) && ("ACCNUM" %in% valid_keys) ) {
 	keytype = "ACCNUM" # this was observed to be a possible case when both ACCNUM (from genbank) and REFSEQ (forked from genbank) exist in the database
 } else {
 	print(valid_keys)
@@ -160,22 +160,48 @@ expression_df <- cbind(annotation$ID, normalized$M)
 
 ## Add annotations
 ```{r general--add_annotations, eval=TRUE,  include=TRUE}
-### Map assay database annotations
-annotation$REFSEQ<-as.character(mapIds(database,keys = keys,keytype = keytype, column = "REFSEQ",multiVals = "first"))
-annotation$ENSEMBL<-as.character(mapIds(database,keys = keys,keytype = keytype, column = "ENSEMBL",multiVals = "first"))
-annotation$SYMBOL<-as.character(mapIds(database,keys = keys,keytype = keytype, column = "SYMBOL",multiVals = "first"))
-annotation$GENENAME<-as.character(mapIds(database,keys = keys,keytype = keytype, column = "GENENAME",multiVals = "first"))
-annotation$ENTREZID<-as.character(mapIds(database,keys = keys,keytype = keytype, column = "ENTREZID",multiVals = "first"))
-annotation$TAIR<-as.character(mapIds(database,keys = keys,keytype = keytype, column = "TAIR",multiVals = "first"))
-annotation$GOSLIM_IDS<-as.character(mapIds(database,keys = keys,keytype = keytype, column = "GO",multiVals = "first"))
+
+annkeys = c("REFSEQ","ENSEMBL","SYMBOL","GENENAME","ENTREZID","TAIR","GOSLIM_IDS")
+# also fetches STRING_ID through a separate call
+
+if ( exists("database") ) {
+	### Map assay database annotations
+	## Columns and rows that do not map will be assigned NA
+	for ( annkey in annkeys ) {
+		skip_to_next <- FALSE
+		print(sprintf("Attempting to fetch %s", annkey))
+		annotation[annkey] <-tryCatch(
+						{
+							as.character(mapIds(database,keys = keys,keytype = keytype, column = annkey,multiVals = "first"))
+						},
+						error=function(cond)
+							{
+								message(sprintf("Could not map %s", annkey))
+								#message(cond)
+								skip_to_next <<- TRUE 
+								return(NA)
+							}
+		)
+	       if (skip_to_next) { next } # needed as an error will normally prevent next loop
+	}
 
 
-### Map STRING annotations
-string_db <- STRINGdb::STRINGdb$new( version="11", species=organism_table$taxon[str_replace(tolower(organism_table$species), " ", "_") == targets$organism] ,score_threshold=0)
-string_map<-string_db$map(annotation,"ENTREZID",removeUnmappedRows = TRUE, takeFirst = TRUE)
-string_cols <-string_map[,c("ENTREZID","STRING_ID")]
-string_cols <- string_cols[!duplicated(string_cols$ENTREZID),]
-annotation <- dplyr::left_join(annotation,string_cols,by="ENTREZID")
+	### Map STRING annotations
+	string_db <- STRINGdb::STRINGdb$new( version="11", species=organism_table$taxon[str_replace(tolower(organism_table$species), " ", "_") == targets$organism] ,score_threshold=0)
+	string_map<-string_db$map(annotation,"ENTREZID",removeUnmappedRows = TRUE, takeFirst = TRUE)
+	string_cols <-string_map[,c("ENTREZID","STRING_id")]
+	string_cols <- string_cols[!duplicated(string_cols$ENTREZID),]
+	annotation <- dplyr::left_join(annotation,string_cols,by="ENTREZID")
+	# rename STRING_id
+	annotation <- annotation %>% dplyr::rename(STRING_ID = STRING_id)
+} else {
+	for ( annkey in annkeys ) {
+		annotation[annkey] <- NA
+	}
+	database <- "NONE_FOUND"
+	database$packageName <- "NONE_FOUND"
+	keytype <- "COULD_NOT_DETERMINE"
+}
 ```
 
 

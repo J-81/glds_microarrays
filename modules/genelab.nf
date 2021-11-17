@@ -93,6 +93,7 @@ def get_runsheet_paths(LinkedHashMap row) {
                      "homo_sapiens":"HUMAN",
                      "drosophila_melanogaster":"FLY",
                      "caenorhabditis_elegans":"WORM",
+                     "bacillus_subtilis":"BACSU",
                      "arabidopsis_thaliana":"ARABIDOPSIS"]
 
     def meta = [:]

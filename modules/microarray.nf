@@ -1,5 +1,4 @@
 process LOAD_RUNSHEET {
-  conda = "${projectDir}/envs/glds_microarray_nf.yml"
 
   input:
     path(runsheet)
@@ -30,7 +29,6 @@ process LOAD_RUNSHEET {
 }
 
 process QA_NORMALIZED {
-  conda = "${projectDir}/envs/glds_microarray_nf.yml"
   publishDir "${ params.outputDir }/${ params.gldsAccession }/01-NormalizedData",
     mode: params.publish_dir_mode
 
@@ -61,7 +59,6 @@ process QA_NORMALIZED {
 
 
 process QA_RAW {
-  conda = "${projectDir}/envs/glds_microarray_nf.yml"
   publishDir "${ params.outputDir }/${ params.gldsAccession }/00-RawData",
     mode: params.publish_dir_mode
 
@@ -91,7 +88,6 @@ process QA_RAW {
 }
 
 process NORMALIZE {
-  conda = "${projectDir}/envs/glds_microarray_nf.yml"
   publishDir "${ params.outputDir }/${ params.gldsAccession }/01-NormalizedData",
     mode: params.publish_dir_mode,
     pattern: "normalize*.{txt,html}"
@@ -123,7 +119,6 @@ process NORMALIZE {
 }
 
 process READ_RAW {
-  conda = "${projectDir}/envs/glds_microarray_nf.yml"
   publishDir "${ params.outputDir }/${ params.gldsAccession }/00-RawData",
     mode: params.publish_dir_mode,
     pattern: "load_raw.html"
@@ -157,7 +152,6 @@ process READ_RAW {
 
 
 process IMPORT_PROBE {
-  conda = "${projectDir}/envs/glds_microarray_nf.yml"
   publishDir "${ params.outputDir }/${ params.gldsAccession }/01-NormalizedData",
     mode: params.publish_dir_mode
 
@@ -191,7 +185,6 @@ process IMPORT_PROBE {
 }
 
 process DGE {
-  conda = "${projectDir}/envs/glds_microarray_nf.yml"
   publishDir "${ params.outputDir }/${ params.gldsAccession }/02-DGE",
     mode: params.publish_dir_mode
 

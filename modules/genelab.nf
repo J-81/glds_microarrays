@@ -1,37 +1,46 @@
 /* Processes dealing with retrieving data from GeneLab
 */
-process RUNSHEET_FROM_GLDS {
-  // Downloads isazip and creates run sheets using GeneLab API
-  tag "${ glds_accession }"
+process DOWNLOAD_ISA {
+  // Downloads ISA archive from genelab API
   publishDir "${ params.outputDir }/${ params.gldsAccession }/Metadata",
     mode: params.publish_dir_mode
 
   input:
     val(glds_accession)
-    path(isa_archive)
 
   output:
-    path("AST_autogen_*_${ glds_accession }_*.csv"), emit: runsheet
+    path("*.zip"), emit: isazip
 
   script:
-    runsheet_arg = ( params.runsheet ==  "microarray" ? "--to-Microarray-runsheet" : "" )
-    if ( isa_archive.name == "NO_FILE" )
     """
-    retrieve_isa_from_genelab.py --accession ${ glds_accession }\
-                                 --alternate-url \
-                                 ${ runsheet_arg }
+    dpt-get-isa-archive --accession ${ glds_accession }\
+      --alternate-url
     """
-    else
+}
+
+process RUNSHEET_FROM_GLDS {
+  // Creates runsheet from ISA archive
+  publishDir "${ params.outputDir }/${ params.gldsAccession }/Metadata",
+    mode: params.publish_dir_mode
+
+  input:
+    tuple val(glds_accession), val(config_type), val(config_version)
+    path(isazip)
+
+  output:
+    // e.g. 'GLDS-205_microarray_v0_runsheet.csv'
+    path("${ glds_accession }_${ config_type }_v${ config_version }_runsheet.csv"), emit: runsheet
+
+  script:
     """
-    retrieve_isa_from_genelab.py --accession ${ glds_accession }\
-                                 --local-isa-zip ${ isa_archive }\
-                                 ${ runsheet_arg }
+    dpt-isa-to-runsheet --accession ${ glds_accession } \
+      --isa-archive ${ isazip } --config-type ${ config_type } \
+      --config-version ${ config_version }
     """
 }
 
 
 process RUN {
-  conda = "${projectDir}/envs/minimal.yml"
   publishDir = "${ params.outputDir }/${ params.gldsAccession }"
 
   input:
@@ -52,7 +61,7 @@ process RUN {
 process STAGE_RAW_FILES {
   // Stages the raw files into appropriate publish directory
   tag "${ meta.id }"
-  publishDir "${ params.outputDir }/${ params.gldsAccession }/${ meta.raw_file_root_dir }",
+  publishDir "${ params.outputDir }/${ params.gldsAccession }/00-RawData",
     mode: params.publish_dir_mode
 
   input:
@@ -97,16 +106,13 @@ def get_runsheet_paths(LinkedHashMap row) {
                      "arabidopsis_thaliana":"ARABIDOPSIS"]
 
     def meta = [:]
-    meta.id                         = row.sample_name
+    meta.id                         = row["Sample Name"]
     meta.organism_sci               = row.organism.replaceAll(" ","_").toLowerCase()
     meta.organism_non_sci           = ORGANISMS[meta.organism_sci]
     meta.raw_file_comment           = row["Comment[Array Data File Name]"]
-    meta.raw_file                   = row["array_data_file"]
-    meta.raw_file_path              = row.array_data_file_path
+    meta.raw_file                   = row["Array Data File Name"]
+    meta.raw_file_path              = row["Array Data File Path"]
     meta.platform                   = row["Study Assay Technology Platform"]
-    meta.channels                   = row.Channels
-
-    meta.raw_file_root_dir          = row.raw_data
     
     return meta
 }
